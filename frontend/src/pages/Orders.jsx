@@ -13,9 +13,9 @@ export default function Orders() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate('/login'); return; }
-    api.get('/orders/orders/')
+    api.get('/orders/') // <-- Đã bỏ phần /orders dư thừa
       .then(r => setOrders(r.data.results || r.data || []))
-      .catch(() => {})
+      .catch((err) => { console.error('Lỗi khi tải đơn hàng:', err); })
       .finally(() => setLoading(false));
   }, [user, authLoading]);
 

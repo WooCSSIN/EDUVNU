@@ -1201,3 +1201,20 @@ button { cursor: pointer; font-family: inherit; }
 .success-method-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
 .success-amount { font-size: 32px; font-weight: 800; color: var(--blue); margin-bottom: 24px; }
 .success-actions { display: flex; gap: 12px; }
+
+/* PENDING INFO BOX */
+.pending-info-box {
+  background: #eff6ff; border: 1px solid #bfdbfe;
+  border-radius: 10px; padding: 16px; margin: 16px 0; width: 100%; text-align: left;
+}
+.pending-info-title { font-size: 14px; font-weight: 700; color: #0369a1; margin-bottom: 12px; }
+.pending-info-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid #dbeafe; font-size: 14px;
+}
+.pending-info-row:last-of-type { border-bottom: none; }
+.pending-info-row span { color: #64748b; }
+.pending-note {
+  font-size: 12px; color: #92400e; background: #fef9c3;
+  padding: 8px 10px; border-radius: 6px; margin-top: 10px;
+}
