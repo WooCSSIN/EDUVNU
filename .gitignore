@@ -1,0 +1,54 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.log
+db.sqlite3
+*.sqlite3
+media/
+staticfiles/
+
+# Django secret key / env
+.env
+*.env
+local_settings.py
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Large files
+docker-desktop.tar
+*.tar
+*.zip
+DATA_KAGGLE/archive.zip
+DATA_KAGGLE/archive/
+
+# Migrations (optional - giữ lại để deploy dễ hơn)
+# VNU/apps/*/migrations/
+
+# Pycache trong migrations
+VNU/apps/*/migrations/__pycache__/
+VNU/apps/*/__pycache__/
+VNU/config/__pycache__/
