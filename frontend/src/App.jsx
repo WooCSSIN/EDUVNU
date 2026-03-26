@@ -11,6 +11,7 @@ import Documents from './pages/Documents';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
 import Degrees from './pages/Degrees';
+import CourseDetail from './pages/CourseDetail';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 /* ── MEGA MENU DATA ── */
@@ -165,6 +166,7 @@ function AppLayout() {
           <Route path="/profile" element={<Profile />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/learn/:courseId" element={<Learn />} />
+        <Route path="/course/:courseId" element={<CourseDetail />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/documents" element={<Documents />} />
           <Route path="/checkout" element={<Checkout />} />
