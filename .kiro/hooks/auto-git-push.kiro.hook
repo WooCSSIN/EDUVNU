@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Auto Push to GitHub",
+  "description": "Tự động git add, commit và push lên GitHub sau mỗi lần agent hoàn thành công việc",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "git add . && git commit -m \"Auto update: %date% %time%\" && git push origin main"
+  }
+}
