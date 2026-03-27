@@ -30,141 +30,125 @@ export default function Cart() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [c, o] = await Promise.all([api.get('/cart/my_cart/'), api.get('/orders/orders/')]);
-      setItems(c.data.items || []);
-      setOrders(o.data.results || o.data || []);
-    } catch {}
-    finally { setLoading(false); }
+      // SỬA LỖI: Gọi riêng biệt để tránh lỗi 1 trang làm hỏng cả 2
+      const cartRes = await api.get('/cart/my_cart/').catch(() => ({ data: { items: [] } }));
+      const orderRes = await api.get('/orders/').catch(() => ({ data: [] })); // <-- Đã sửa đường dẫn đúng
+      
+      setItems(cartRes.data.items || []);
+      setOrders(orderRes.data.results || orderRes.data || []);
+    } catch (err) {
+      console.error('Lỗi khi tải dữ liệu giỏ hàng:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const removeItem = async (courseId) => {
     setRemoving(courseId);
     try {
       await api.delete('/cart/remove_item/', { data: { course_id: courseId } });
-      setItems(p => p.filter(i => i.course.id !== courseId));
-      setMsg({ text: 'Da xoa khoi gio hang.', type: 'info' });
-    } catch { setMsg({ text: 'Khong the xoa.', type: 'error' }); }
-    finally { setRemoving(null); }
+      setItems(p => p.filter(i => i.course?.id !== courseId));
+      setMsg({ text: 'Đã xóa khỏi giỏ hàng.', type: 'info' });
+    } catch {
+      setMsg({ text: 'Không thể xóa sản phẩm.', type: 'error' });
+    } finally {
+      setRemoving(null);
+    }
   };
 
-  const subtotal = items.reduce((s, i) => s + parseFloat(i.course.price || 0), 0);
+  const subtotal = items.reduce((s, i) => s + parseFloat(i.course?.price || 0), 0);
 
-  if (loading) return <div className="crs-loading">Dang tai gio hang...</div>;
+  if (loading) return <div className="crs-loading">Đang tải giỏ hàng của bạn...</div>;
 
   return (
-    <div className="cart-page-v3">
-      <div className="crs-breadcrumb" style={{padding:'16px 0 0'}}>
-        <Link to="/">Trang chu</Link><span>/</span><span>Gio hang</span>
+    <div className="cart-page-v3" style={{padding: '40px 64px', minHeight: '80vh'}}>
+      <div className="crs-breadcrumb" style={{marginBottom: '24px'}}>
+        <Link to="/" style={{textDecoration:'none', color:'#0056d2'}}>Trang chủ</Link>
+        <span style={{margin:'0 8px', color:'#ccc'}}>/</span>
+        <span>Giỏ hàng</span>
       </div>
-      <h1 className="cart-page-title">Gio hang cua toi</h1>
-      <div className="cart-tabs-v3">
-        <button className={tab==='cart'?'cart-tab-v3 active':'cart-tab-v3'} onClick={()=>setTab('cart')}>
-          Cho thanh toan <span className="cart-tab-badge">{items.length}</span>
+
+      <h1 style={{fontSize: '32px', fontWeight: 800, marginBottom: '32px'}}>Giỏ hàng của tôi</h1>
+
+      {/* Tabs */}
+      <div style={{display: 'flex', gap: '32px', borderBottom: '1px solid #ddd', marginBottom: '32px'}}>
+        <button 
+          onClick={() => setTab('cart')}
+          style={{padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 700, borderBottom: tab === 'cart' ? '3px solid #0056d2' : 'none', color: tab === 'cart' ? '#0056d2' : '#666'}}>
+          Chờ thanh toán ({items.length})
         </button>
-        <button className={tab==='orders'?'cart-tab-v3 active':'cart-tab-v3'} onClick={()=>setTab('orders')}>
-          Da mua <span className="cart-tab-badge">{orders.length}</span>
+        <button 
+          onClick={() => setTab('orders')}
+          style={{padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 700, borderBottom: tab === 'orders' ? '3px solid #0056d2' : 'none', color: tab === 'orders' ? '#0056d2' : '#666'}}>
+          Đã mua ({orders.length})
         </button>
       </div>
-      {msg.text && <div className={`cart-msg-v3 ${msg.type}`}>{msg.text}</div>}
 
-      {tab==='cart' && (items.length===0 ? (
-        <div className="cart-empty-v3">
-          <div className="cart-empty-icon">🛒</div>
-          <h3>Gio hang cua ban dang trong</h3>
-          <p>Hay kham pha va them cac khoa hoc yeu thich</p>
-          <button className="crs-btn-solid" onClick={()=>navigate('/')}>Kham pha khoa hoc</button>
-        </div>
-      ) : (
-        <div className="cart-layout-v3">
-          <div className="cart-items-v3">
-            <p className="cart-items-count">{items.length} khoa hoc trong gio hang</p>
-            {items.map((item,idx) => (
-              <div key={item.id} className="cart-item-v3">
-                <div className="cart-item-thumb-v3" style={{background:GRADS[idx%GRADS.length]}} onClick={()=>navigate(`/course/${item.course.id}`)}>
-                  {fixText(item.course.title)[0]}
-                </div>
-                <div className="cart-item-info-v3">
-                  <h4 className="cart-item-title-v3" onClick={()=>navigate(`/course/${item.course.id}`)}>{fixText(item.course.title)}</h4>
-                  <p className="cart-item-org-v3">{fixText(item.course.instructor?.first_name||item.course.instructor?.username||'')}</p>
-                  {item.course.level && <span className="cart-item-level-v3">{item.course.level}</span>}
-                  <div className="cart-item-actions-v3">
-                    <button className="cart-remove-v3" onClick={()=>removeItem(item.course.id)} disabled={removing===item.course.id}>
-                      {removing===item.course.id?'...':'Xoa'}
-                    </button>
-                    <button className="cart-save-v3" onClick={()=>navigate(`/course/${item.course.id}`)}>Xem chi tiet</button>
-                  </div>
-                </div>
-                <div className="cart-item-price-v3">
-                  {parseFloat(item.course.price)===0
-                    ? <span className="price-free-v3">Mien phi</span>
-                    : <span className="price-paid-v3">{parseFloat(item.course.price).toLocaleString('vi-VN')} d</span>}
-                </div>
-              </div>
-            ))}
+      {tab === 'cart' && (
+        items.length === 0 ? (
+          <div style={{textAlign: 'center', padding: '100px 0'}}>
+            <div style={{fontSize: '64px', marginBottom: '16px'}}>🛒</div>
+            <h3>Giỏ hàng của bạn đang trống</h3>
+            <button className="crs-btn-solid" onClick={() => navigate('/')} style={{marginTop: '24px'}}>Khám phá khóa học ngay</button>
           </div>
-          <div className="cart-summary-v3">
-            <div className="cart-summary-card-v3">
-              <h3>Tom tat don hang</h3>
-              <div className="summary-line"><span>So khoa hoc</span><span>{items.length}</span></div>
-              <div className="summary-line"><span>Tam tinh</span><span>{subtotal.toLocaleString('vi-VN')} d</span></div>
-              <div className="summary-line"><span>Giam gia</span><span className="discount-green">- 0 d</span></div>
-              <div className="summary-divider"/>
-              <div className="summary-total">
-                <span>Tong cong</span>
-                <span className="summary-total-price">{subtotal===0?'Mien phi':`${subtotal.toLocaleString('vi-VN')} d`}</span>
-              </div>
-              <button className="checkout-btn-v3" onClick={()=>navigate('/checkout')}>Tien hanh thanh toan</button>
-              <button className="continue-btn-v3" onClick={()=>navigate('/')}>Tiep tuc mua sam</button>
-              <div className="secure-note-v3">Thanh toan an toan</div>
-            </div>
-            <div className="promo-card-v3">
-              <h4>Ma giam gia</h4>
-              <div className="promo-input-row">
-                <input type="text" placeholder="Nhap ma giam gia..."/>
-                <button>Ap dung</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-
-      {tab==='orders' && (orders.length===0 ? (
-        <div className="cart-empty-v3">
-          <div className="cart-empty-icon">📦</div>
-          <h3>Chua co don hang nao</h3>
-          <button className="crs-btn-solid" onClick={()=>navigate('/')}>Mua khoa hoc ngay</button>
-        </div>
-      ) : (
-        <div className="orders-list-v3">
-          {orders.map((order,oi) => (
-            <div key={order.id} className="order-card-v3">
-              <div className="order-card-head-v3">
-                <div>
-                  <span className="order-id-v3">Don #{order.id}</span>
-                  <span className="order-date-v3">{new Date(order.created_at).toLocaleDateString('vi-VN')}</span>
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  <span className="order-total-v3">{parseFloat(order.total_price).toLocaleString('vi-VN')} d</span>
-                  <span className="order-status-v3 paid">Da thanh toan</span>
-                </div>
-              </div>
-              <div className="order-items-v3">
-                {order.items?.map((item,idx) => (
-                  <div key={item.id} className="order-item-v3">
-                    <div className="order-item-thumb-v3" style={{background:GRADS[(oi+idx)%GRADS.length]}}>{item.course?.title?.[0]}</div>
-                    <div className="order-item-info-v3">
-                      <p className="order-item-title-v3">{item.course?.title}</p>
-                      <p className="order-item-org-v3">{item.course?.instructor?.username}</p>
+        ) : (
+          <div style={{display: 'flex', gap: '48px'}}>
+            <div style={{flex: 1}}>
+               {items.map((item, idx) => (
+                 <div key={item.id} style={{display: 'flex', gap: '20px', padding: '24px', border: '1px solid #eee', borderRadius: '8px', marginBottom: '16px'}}>
+                    <div style={{width: '120px', height: '80px', background: GRADS[idx % GRADS.length], borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '24px'}}>
+                      {fixText(item.course?.title)[0]}
                     </div>
-                    <span className="order-item-price-v3">{parseFloat(item.price).toLocaleString('vi-VN')} d</span>
-                    <button className="go-learn-v3" onClick={()=>navigate(`/learn/${item.course?.id}`)}>Vao hoc</button>
-                  </div>
-                ))}
-              </div>
+                    <div style={{flex: 1}}>
+                       <h4 style={{fontSize: '18px', fontWeight: 700, marginBottom: '4px'}}>{fixText(item.course?.title)}</h4>
+                       <p style={{fontSize: '14px', color: '#666'}}>{item.course?.partner_name || 'EduVNU Partner'}</p>
+                       <button 
+                         onClick={() => removeItem(item.course?.id)}
+                         style={{background: 'none', border: 'none', color: '#d32f2f', cursor: 'pointer', fontSize: '13px', marginTop: '12px', padding: 0}}>
+                         {removing === item.course?.id ? 'Đang xóa...' : 'Xóa khỏi giỏ'}
+                       </button>
+                    </div>
+                    <div style={{fontWeight: 700, fontSize: '18px', color: '#0056d2'}}>
+                       {parseFloat(item.course?.price || 0).toLocaleString()} đ
+                    </div>
+                 </div>
+               ))}
             </div>
-          ))}
-        </div>
-      ))}
+
+            <div style={{width: '350px'}}>
+               <div style={{padding: '24px', border: '1px solid #ddd', borderRadius: '8px', background: '#f8f9fa'}}>
+                  <h3 style={{marginBottom: '20px'}}>Tóm tắt đơn hàng</h3>
+                  <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '12px'}}>
+                    <span>Tạm tính:</span>
+                    <strong>{subtotal.toLocaleString()} đ</strong>
+                  </div>
+                  <div style={{borderTop: '1px solid #ddd', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', fontSize: '20px', fontWeight: 800}}>
+                    <span>Tổng cộng:</span>
+                    <span style={{color: '#0056d2'}}>{subtotal.toLocaleString()} đ</span>
+                  </div>
+                  <button className="crs-btn-solid" onClick={() => navigate('/checkout')} style={{width: '100%', marginTop: '24px', padding: '16px'}}>Thanh toán ngay</button>
+               </div>
+            </div>
+          </div>
+        )
+      )}
+
+      {tab === 'orders' && (
+        orders.map(order => (
+          <div key={order.id} style={{padding: '24px', border: '1px solid #eee', borderRadius: '8px', marginBottom: '16px'}}>
+             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '16px'}}>
+                <span style={{fontWeight: 700}}>Đơn hàng #{order.id} - {new Date(order.created_at).toLocaleDateString()}</span>
+                <span style={{padding: '4px 12px', background: '#dcfce7', color: '#16a34a', borderRadius: '20px', fontSize: '12px', fontWeight: 700}}>Đã thanh toán</span>
+             </div>
+             {order.items?.map(item => (
+               <div key={item.id} style={{display: 'flex', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #fafafa'}}>
+                  <span>{item.course?.title}</span>
+                  <button onClick={() => navigate(`/learn/${item.course?.id}`)} style={{background: 'none', border: 'none', color: '#0056d2', cursor: 'pointer', fontWeight: 700}}>Vào học</button>
+               </div>
+             ))}
+          </div>
+        ))
+      )}
     </div>
   );
 }
