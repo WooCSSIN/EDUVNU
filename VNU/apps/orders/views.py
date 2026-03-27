@@ -27,16 +27,24 @@ class OrderViewSet(viewsets.ModelViewSet):
             total_price = sum(i.course.price for i in items)
             
             with transaction.atomic():
+                # TỰ ĐỘNG KÍCH HOẠT NẾU GIÁ BẰNG 0 (MIỄN PHÍ)
+                order_status = 'paid' if total_price == 0 else 'pending'
+                
                 order = Order.objects.create(
                     user=request.user, 
                     total_price=total_price, 
                     payment_method=request.data.get('payment_method', 'online'), 
-                    status='pending' 
+                    status=order_status,
+                    paid_at=timezone.now() if total_price == 0 else None
                 )
+                
                 for i in items:
                     OrderItem.objects.create(order=order, course=i.course, price=i.course.price)
+                    # NẾU 0đ THÌ GHI DANH LUÔN
+                    if total_price == 0:
+                        Enrollment.objects.get_or_create(user=request.user, course=i.course)
                 
-                # CHỈ XÓA GIỎ HÀNG KHI ĐÃ TẠO ORDER THÀNH CÔNG
+                # XÓA GIỎ HÀNG KHI ĐÃ TẠO ORDER THÀNH CÔNG
                 items.delete()
                 
             return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
