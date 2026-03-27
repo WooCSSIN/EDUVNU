@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import usePageSEO from '../hooks/usePageSEO';
 
 export default function Documents() {
+  usePageSEO({ title: 'Tài liệu học tập', description: 'Từ khóa khóa học, giáo trình, slide bài giảng được liên kết trực tiếp trên khóa học của bạn.' });
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [enrollments, setEnrollments] = useState([]);

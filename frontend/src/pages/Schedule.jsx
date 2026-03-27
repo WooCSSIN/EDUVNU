@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { fixText } from '../utils/fixEncoding';
+import usePageSEO from '../hooks/usePageSEO';
 
 const TABS = ['Đang học', 'Hoàn thành', 'Tất cả'];
 
 export default function Schedule() {
+  usePageSEO({ title: 'Lịch trình học', description: 'Quản lý lịch trình, thời gian học tập và theo dõi tiến độ các khóa học của bạn.' });
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [schedule, setSchedule] = useState([]);

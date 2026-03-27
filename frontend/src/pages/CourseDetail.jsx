@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { fixText } from '../utils/fixEncoding';
+import usePageSEO from '../hooks/usePageSEO';
 
 const GRADS = [
   'linear-gradient(135deg,#0369a1,#0ea5e9)',
@@ -35,18 +36,52 @@ export default function CourseDetail() {
   const [toast, setToast] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedSection, setExpandedSection] = useState(0);
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+
+  // ❗ usePageSEO must be called unconditionally BEFORE any early returns (Rules of Hooks)
+  usePageSEO({
+    title: course ? fixText(course.title) : 'Chi tiết khóa học',
+    description: course
+      ? (course.description?.slice(0, 160) || `Khóa học ${fixText(course.title)} tại EduVNU`)
+      : 'EduVNU - Xem chi tiết khóa học',
+  });
 
   useEffect(() => {
     loadCourse();
   }, [courseId]);
+
+  // Fetch real reviews when user clicks Đánh giá tab
+  useEffect(() => {
+    if (activeTab === 'reviews' && courseId) {
+      setReviewsLoading(true);
+      api.get(`/courses/courses/${courseId}/reviews/`)
+        .then(r => setReviews(r.data?.results || r.data || []))
+        .catch(() => setReviews([]))  // Fallback to demo data if API missing
+        .finally(() => setReviewsLoading(false));
+    }
+  }, [activeTab, courseId]);
 
   const loadCourse = async () => {
     setLoading(true);
     try {
       const res = await api.get(`/courses/courses/${courseId}/`);
       setCourse(res.data);
-      // Kiểm tra enrolled
-      if (user && res.data.lessons) setIsEnrolled(true);
+      // Kiểm tra enrolled thực sự qua enrollment API
+      if (user) {
+        try {
+          const enrollRes = await api.get(`/courses/progress/my_progress/?course_id=${courseId}`);
+          // Nếu có dữ liệu progress => đã ghi danh
+          if (enrollRes.data && enrollRes.data.length > 0) setIsEnrolled(true);
+          else {
+            // Kiểm tra thêm qua lessons API (nếu trả 200 = đã enrolled)
+            await api.get(`/courses/courses/${courseId}/lessons/`);
+            setIsEnrolled(true);
+          }
+        } catch {
+          setIsEnrolled(false);
+        }
+      }
     } catch { navigate('/'); }
     finally { setLoading(false); }
   };
@@ -68,11 +103,24 @@ export default function CourseDetail() {
   if (!course) return null;
 
   const title = fixText(course.title);
-  const org = fixText(course.instructor?.first_name || course.instructor?.username || 'Giảng viên');
+  // Fix: Use full name chain so 'Giảng viên' fallback only when truly no name available
+  const instructor = course.instructor;
+  const org = fixText(
+    instructor?.full_name ||
+    (instructor?.first_name && instructor?.last_name ? `${instructor.first_name} ${instructor.last_name}` : null) ||
+    instructor?.first_name ||
+    instructor?.username ||
+    course.partner_name ||
+    'EduVNU Partner'
+  );
   const rating = parseFloat(course.rating) || 0;
   const price = parseFloat(course.price) || 0;
   const skills = Array.isArray(course.skills_list) ? course.skills_list : [];
   const gradIdx = parseInt(courseId) % GRADS.length;
+  // Thumbnail: use real image if available, else gradient avatar
+  const thumbnailUrl = course.thumbnail || course.thumbnail_url || course.image || null;
+
+  // (SEO now applied above, before early returns)
 
   // Tạo mock curriculum từ skills
   const curriculum = skills.length > 0
@@ -98,13 +146,13 @@ export default function CourseDetail() {
         <div className="cd-hero-inner">
           <div className="cd-hero-content">
             {/* BREADCRUMB */}
-            <div className="cd-breadcrumb">
-              <span onClick={() => navigate('/')} className="cd-bc-link">Trang chủ</span>
-              <span>/</span>
-              <span onClick={() => navigate('/')} className="cd-bc-link">{fixText(course.category?.name) || 'Khóa học'}</span>
-              <span>/</span>
-              <span>{title.length > 40 ? title.slice(0, 40) + '…' : title}</span>
-            </div>
+            <nav aria-label="Breadcrumb" className="cd-breadcrumb">
+              <Link to="/" className="cd-bc-link">Trang chủ</Link>
+              <span aria-hidden="true">/</span>
+              <Link to="/" className="cd-bc-link">{fixText(course.category?.name) || 'Khóa học'}</Link>
+              <span aria-hidden="true">/</span>
+              <span aria-current="page">{title.length > 40 ? title.slice(0, 40) + '…' : title}</span>
+            </nav>
 
             <h1 className="cd-title">{title}</h1>
             <p className="cd-desc">{course.description?.split('\n')[0] || `Khóa học chuyên sâu từ ${org}`}</p>
@@ -131,8 +179,15 @@ export default function CourseDetail() {
 
           {/* STICKY CARD */}
           <div className="cd-sticky-card">
-            <div className="cd-card-thumb" style={{ background: 'rgba(0,0,0,0.2)', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px 8px 0 0' }}>
-              <span style={{ fontSize: 64, color: 'rgba(255,255,255,0.8)' }}>{org[0]?.toUpperCase()}</span>
+            {/* Thumbnail: real image if available, else gradient letter */}
+            <div className="cd-card-thumb" style={{ height: 160, overflow: 'hidden', borderRadius: '8px 8px 0 0', background: GRADS[gradIdx], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {thumbnailUrl ? (
+                <img src={thumbnailUrl} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
+              ) : null}
+              <span style={{ fontSize: 64, color: 'rgba(255,255,255,0.85)', display: thumbnailUrl ? 'none' : 'flex' }}>
+                {org[0]?.toUpperCase() || 'E'}
+              </span>
             </div>
             <div className="cd-card-body">
               <div className="cd-card-price">
@@ -150,7 +205,7 @@ export default function CourseDetail() {
                   <button className="cd-enroll-btn" onClick={addToCart} disabled={addingCart}>
                     {addingCart ? 'Đang thêm...' : 'Thêm vào giỏ hàng'}
                   </button>
-                  <button className="cd-buy-btn" onClick={() => { addToCart(); navigate('/checkout'); }}>
+                  <button className="cd-buy-btn" onClick={async () => { await addToCart(); navigate('/checkout'); }}>
                     Mua ngay
                   </button>
                 </>
@@ -308,23 +363,46 @@ export default function CourseDetail() {
                   </div>
                 </div>
               )}
+              {/* Real reviews from API */}
               <div className="cd-reviews-list">
-                {[
-                  { name: 'Nguyễn Văn A', rating: 5, text: 'Khóa học rất hay, giảng viên giải thích rõ ràng và dễ hiểu. Tôi đã học được rất nhiều kiến thức bổ ích.' },
-                  { name: 'Trần Thị B', rating: 4, text: 'Nội dung phong phú, thực hành nhiều. Rất phù hợp cho người mới bắt đầu.' },
-                  { name: 'Lê Văn C', rating: 5, text: 'Tuyệt vời! Đây là một trong những khóa học tốt nhất tôi từng tham gia.' },
-                ].map((review, i) => (
-                  <div key={i} className="cd-review-item">
-                    <div className="cd-review-header">
-                      <div className="cd-reviewer-avatar">{review.name[0]}</div>
-                      <div>
-                        <p className="cd-reviewer-name">{review.name}</p>
-                        <Stars rating={review.rating} />
+                {reviewsLoading ? (
+                  <div style={{color:'var(--muted)',padding:'20px 0'}}>Đang tải đánh giá...</div>
+                ) : reviews.length > 0 ? (
+                  reviews.map((review, i) => (
+                    <div key={i} className="cd-review-item">
+                      <div className="cd-review-header">
+                        <div className="cd-reviewer-avatar">
+                          {(review.user?.first_name || review.user?.username || 'U')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="cd-reviewer-name">
+                            {review.user?.first_name ? `${review.user.first_name} ${review.user.last_name || ''}`.trim() : review.user?.username || 'Học viên'}
+                          </p>
+                          <Stars rating={review.rating || 5} />
+                        </div>
                       </div>
+                      <p className="cd-review-text">{review.comment || review.text || ''}</p>
                     </div>
-                    <p className="cd-review-text">{review.text}</p>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  // Fallback demo reviews khi API chưa có data
+                  [
+                    { name: 'Nguyễn Văn A', rating: 5, text: 'Khóa học rất hay, giảng viên giải thích rõ ràng và dễ hiểu. Tôi đã học được rất nhiều kiến thức bổ ích.' },
+                    { name: 'Trần Thị B', rating: 4, text: 'Nội dung phong phú, thực hành nhiều. Rất phù hợp cho người mới bắt đầu.' },
+                    { name: 'Lê Văn C', rating: 5, text: 'Tuyệt vời! Đây là một trong những khóa học tốt nhất tôi từng tham gia.' },
+                  ].map((review, i) => (
+                    <div key={i} className="cd-review-item">
+                      <div className="cd-review-header">
+                        <div className="cd-reviewer-avatar">{review.name[0]}</div>
+                        <div>
+                          <p className="cd-reviewer-name">{review.name}</p>
+                          <Stars rating={review.rating} />
+                        </div>
+                      </div>
+                      <p className="cd-review-text">{review.text}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}

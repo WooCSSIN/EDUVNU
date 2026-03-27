@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import usePageSEO from '../hooks/usePageSEO';
 import { useAuth } from '../context/AuthContext';
 
 export default function Auth() {
+  usePageSEO({
+    title: 'Đăng nhập & Đăng ký',
+    description: 'Đăng nhập hoặc tạo tài khoản EduVNU để bắt đầu hành trình học tập trực tuyến của bạn. Tham gia cộng đồng hàng triệu học viên.'
+  });
   const [isLogin, setIsLogin] = useState(true);
   const [form, setForm] = useState({ username: '', email: '', password: '', password2: '' });
   const [error, setError] = useState('');

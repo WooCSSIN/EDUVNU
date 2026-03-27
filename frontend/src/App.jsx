@@ -9,10 +9,13 @@ import Learn from './pages/Learn';
 import Schedule from './pages/Schedule';
 import Documents from './pages/Documents';
 import Checkout from './pages/Checkout';
+import PaymentReturn from './pages/PaymentReturn';
 import Orders from './pages/Orders';
 import Degrees from './pages/Degrees';
 import CourseDetail from './pages/CourseDetail';
+import NotFound from './pages/NotFound';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import api from './api/axios';
 
 /* ── MEGA MENU DATA ── */
 const EXPLORE_COLS = [
@@ -63,10 +66,17 @@ function MegaMenu({ onClose }) {
 function Header() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMega, setShowMega] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const userMenuRef = useRef(null);
   const megaRef = useRef(null);
+
+  useEffect(() => {
+    if (user) {
+      api.get('/cart/my_cart/').then(r => setCartCount(r.data.items?.length || 0)).catch(() => {});
+    } else { setCartCount(0); }
+  }, [user]);
 
   useEffect(() => {
     const h = (e) => {
@@ -96,14 +106,32 @@ function Header() {
 
           <div className="crs-search">
             <span className="crs-search-icon">🔍</span>
-            <input type="text" placeholder="Bạn muốn học gì?" />
+            <input
+              type="text"
+              placeholder="Bạn muốn học gì?"
+              aria-label="Tìm kiếm khóa học"
+              onKeyDown={e => {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                  navigate(`/?q=${encodeURIComponent(e.target.value.trim())}`);
+                  e.target.value = '';
+                }
+              }}
+            />
           </div>
         </div>
 
-        {/* RIGHT */}
-        <nav className="crs-nav-right">
-          <Link to="/cart" className="crs-cart-icon-btn" title="Giỏ hàng">
+        <nav className="crs-nav-right" aria-label="Điều hướng phụ">
+          <Link to="/cart" className="crs-cart-icon-btn" title="Giỏ hàng" aria-label={`Giỏ hàng, hiện có ${cartCount} khóa học`} style={{position:'relative'}}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            {cartCount > 0 && (
+              <span style={{
+                position:'absolute', top:-4, right:-4,
+                background:'#dc2626', color:'white',
+                fontSize:10, fontWeight:700, minWidth:18, height:18,
+                borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center',
+                padding:'0 4px', border:'2px solid white'
+              }} aria-hidden="true">{cartCount}</span>
+            )}
           </Link>
 
           {user ? (
@@ -170,8 +198,10 @@ function AppLayout() {
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/documents" element={<Documents />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/payment-return" element={<PaymentReturn />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/degrees" element={<Degrees />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
       <footer className="crs-footer">

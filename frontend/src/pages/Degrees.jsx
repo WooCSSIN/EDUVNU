@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import usePageSEO from '../hooks/usePageSEO';
 
 /* ── DATA ── */
 const DEGREE_LEVELS = ['Bằng cử nhân', 'Bằng thạc sĩ'];
@@ -123,6 +124,7 @@ function DegreeDetail({ program, onClose }) {
 
 /* ── MAIN PAGE ── */
 export default function Degrees() {
+  usePageSEO({ title: 'Bằng cấp & Chứng chỉ chuyên nghiệp' });
   const [levelFilter, setLevelFilter] = useState([]);
   const [subjectFilter, setSubjectFilter] = useState([]);
   const [selected, setSelected] = useState(null);

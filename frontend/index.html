@@ -1,12 +1,126 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+    <!-- ══ SEO PRIMARY ══ -->
+    <title>EduVNU — Nền tảng học trực tuyến hàng đầu Việt Nam</title>
+    <meta name="description" content="EduVNU cung cấp 100+ khóa học trực tuyến chất lượng cao từ các đối tác hàng đầu. Học AI, Data Science, Business, UX Design, Cybersecurity và nhiều hơn nữa. Chứng chỉ sau khi hoàn thành." />
+    <meta name="keywords" content="học trực tuyến, khóa học online, EduVNU, VNU, e-learning, chứng chỉ, AI, data science, lập trình, python, marketing, UX design, tiếng Anh, tiếng Hàn" />
+    <meta name="author" content="EduVNU - Đại học Quốc gia Việt Nam" />
+    <meta name="robots" content="index, follow" />
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://eduvnu.edu.vn/" />
+
+    <!-- ══ FAVICON ══ -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon.svg" />
+    <meta name="theme-color" content="#0056D2" />
+
+    <!-- ══ OPEN GRAPH (Facebook, Zalo, LinkedIn) ══ -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="EduVNU" />
+    <meta property="og:title" content="EduVNU — Nền tảng học trực tuyến hàng đầu Việt Nam" />
+    <meta property="og:description" content="100+ khóa học chất lượng cao từ các đối tác hàng đầu thế giới. Học mọi lúc, mọi nơi. Chứng chỉ quốc tế." />
+    <meta property="og:url" content="https://eduvnu.edu.vn/" />
+    <meta property="og:image" content="https://eduvnu.edu.vn/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="vi_VN" />
+
+    <!-- ══ TWITTER CARD ══ -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="EduVNU — Nền tảng học trực tuyến hàng đầu Việt Nam" />
+    <meta name="twitter:description" content="100+ khóa học chất lượng từ đối tác hàng đầu. Học AI, Data Science, Business và hơn thế." />
+    <meta name="twitter:image" content="https://eduvnu.edu.vn/og-image.jpg" />
+
+    <!-- ══ STRUCTURED DATA (Schema.org — JSON-LD) ══ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "EducationalOrganization",
+      "name": "EduVNU",
+      "alternateName": "EduVNU - Đại học Quốc gia Việt Nam",
+      "url": "https://eduvnu.edu.vn",
+      "logo": "https://eduvnu.edu.vn/favicon.svg",
+      "description": "Nền tảng học trực tuyến hàng đầu Việt Nam, cung cấp 100+ khóa học chất lượng cao về AI, Data Science, Business, Design và nhiều lĩnh vực khác.",
+      "foundingDate": "2026",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "144 Xuân Thủy, Cầu Giấy",
+        "addressLocality": "Hà Nội",
+        "addressCountry": "VN"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "availableLanguage": ["Vietnamese", "English"]
+      },
+      "sameAs": [
+        "https://facebook.com/eduvnu",
+        "https://youtube.com/@eduvnu"
+      ]
+    }
+    </script>
+
+    <!-- ══ COURSE LIST STRUCTURED DATA ══ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "name": "Khóa học phổ biến tại EduVNU",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "item": {
+            "@type": "Course",
+            "name": "Deep Learning Specialization",
+            "provider": { "@type": "Organization", "name": "DeepLearning.AI" },
+            "description": "Khóa học chuyên sâu về Deep Learning và Neural Networks"
+          }
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "item": {
+            "@type": "Course",
+            "name": "Google Data Analytics Certificate",
+            "provider": { "@type": "Organization", "name": "Google" },
+            "description": "Chứng chỉ phân tích dữ liệu từ Google"
+          }
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "item": {
+            "@type": "Course",
+            "name": "Google UX Design Certificate",
+            "provider": { "@type": "Organization", "name": "Google" },
+            "description": "Chứng chỉ thiết kế UX từ Google"
+          }
+        }
+      ]
+    }
+    </script>
+
+    <!-- ══ PERFORMANCE: Preconnect ══ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://www.youtube.com" />
+    <link rel="dns-prefetch" href="https://www.youtube.com" />
   </head>
   <body>
+    <!-- Noscript fallback for SEO crawlers -->
+    <noscript>
+      <div style="padding:40px;text-align:center;font-family:sans-serif;">
+        <h1>EduVNU — Nền tảng học trực tuyến hàng đầu Việt Nam</h1>
+        <p>Bạn cần bật JavaScript để sử dụng EduVNU. Chúng tôi cung cấp 100+ khóa học chất lượng cao về AI, Data Science, Business, UX Design và nhiều lĩnh vực khác.</p>
+        <p>Liên hệ: support@eduvnu.edu.vn | Địa chỉ: 144 Xuân Thủy, Cầu Giấy, Hà Nội</p>
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { fixText } from '../utils/fixEncoding';
+import usePageSEO from '../hooks/usePageSEO';
 
 export default function Learn() {
   const { courseId } = useParams();
@@ -16,6 +17,11 @@ export default function Learn() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [errorStatus, setErrorStatus] = useState(null);
+
+  usePageSEO({
+    title: course ? `Đang học: ${fixText(course.title)}` : 'Học tập',
+    description: course ? `Bài giảng trực tuyến: ${fixText(course.title)} tại EduVNU` : 'Học tập tại EduVNU',
+  });
 
   useEffect(() => {
     if (authLoading) return;
@@ -75,12 +81,15 @@ export default function Learn() {
       if (url.includes('v=')) vidId = url.split('v=')[1]?.split('&')[0];
       else if (url.includes('youtu.be/')) vidId = url.split('youtu.be/')[1]?.split('?')[0];
       else vidId = url.split('/').pop();
+      
+      const origin = window.location.origin;
       return (
         <iframe
-          src={`https://www.youtube.com/embed/${vidId}?rel=0&modestbranding=1`}
+          src={`https://www.youtube.com/embed/${vidId}?rel=0&modestbranding=1&origin=${origin}&enablejsapi=1`}
           style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',border:'none'}}
           allowFullScreen
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
         />
       );
     }
@@ -108,6 +117,26 @@ export default function Learn() {
   };
 
   if (authLoading || loading) return <div style={{padding:100,textAlign:'center',background:'#1c1d1f',color:'white',minHeight:'100vh'}}>⚡ Đang kết nối bài giảng...</div>;
+
+  if (errorStatus === 403) return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'80vh',gap:20,padding:40,textAlign:'center'}}>
+      <div style={{fontSize:72}}>🔒</div>
+      <h2 style={{fontSize:28,fontWeight:700}}>Bạn chưa ghi danh khóa học này</h2>
+      <p style={{color:'var(--muted)',fontSize:16,maxWidth:480}}>Vui lòng mua khóa học để truy cập nội dung bài giảng. Sau khi thanh toán, bạn sẽ được tự động ghi danh.</p>
+      <div style={{display:'flex',gap:12,marginTop:8}}>
+        <button className="crs-btn-solid" style={{padding:'14px 32px',fontSize:16}} onClick={()=>navigate(`/course/${courseId}`)}>Xem & Mua khóa học</button>
+        <button className="crs-btn-outline" style={{padding:'14px 24px'}} onClick={()=>navigate('/')}>← Về trang chủ</button>
+      </div>
+    </div>
+  );
+
+  if (errorStatus) return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'80vh',gap:16,padding:40,textAlign:'center'}}>
+      <div style={{fontSize:64}}>⚠️</div>
+      <h2>Đã xảy ra lỗi (Mã: {errorStatus})</h2>
+      <button className="crs-btn-solid" onClick={()=>navigate('/')}>Về trang chủ</button>
+    </div>
+  );
 
   return (
     <div className="learn-container" style={{background:'#1c1d1f',color:'white',minHeight:'100vh',display:'flex',flexDirection:'column'}}>

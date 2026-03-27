@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import usePageSEO from '../hooks/usePageSEO';
 
 export default function Orders() {
+  usePageSEO({ title: 'Lịch sử giao dịch', description: 'Xem lại thông tin các đơn hàng và danh sách khóa học bạn đã thanh toán tại EduVNU.' });
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);

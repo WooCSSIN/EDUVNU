@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import usePageSEO from '../hooks/usePageSEO';
 
 export default function Profile() {
+  usePageSEO({ title: 'Hồ sơ của tôi', description: 'Quản lý thông tin cá nhân, xem các khóa học đã đăng ký và theo dõi tiến độ học tập của bạn tại EduVNU.' });
   const { user, loading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
   const [enrollments, setEnrollments] = useState([]);

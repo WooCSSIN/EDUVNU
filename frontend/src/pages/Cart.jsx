@@ -3,21 +3,28 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { fixText } from '../utils/fixEncoding';
+import { Loading, SkeletonList } from '../components/LoadingUI';
+import usePageSEO from '../hooks/usePageSEO';
 
 const GRADS = [
   'linear-gradient(135deg,#0369a1,#0ea5e9)',
   'linear-gradient(135deg,#7c3aed,#a78bfa)',
   'linear-gradient(135deg,#059669,#34d399)',
   'linear-gradient(135deg,#b45309,#f59e0b)',
+  'linear-gradient(135deg,#dc2626,#f87171)',
+  'linear-gradient(135deg,#7c3aed,#c084fc)',
 ];
 
 export default function Cart() {
+  usePageSEO({ title: 'Giỏ hàng', description: 'Xem và quản lý giỏ hàng khóa học của bạn tại EduVNU. Thanh toán an toàn, bảo mật SSL.' });
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState(null);
   const [tab, setTab] = useState('cart');
-  const [msg, setMsg] = useState({ text: '', type: '' });
+  const [expandedOrder, setExpandedOrder] = useState(null);
+  const [coupon, setCoupon] = useState('');
+  const [toast, setToast] = useState('');
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -27,17 +34,21 @@ export default function Cart() {
     loadData();
   }, [user, authLoading]);
 
+  useEffect(() => {
+    if (toast) { const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }
+  }, [toast]);
+
   const loadData = async () => {
     setLoading(true);
     try {
-      // SỬA LỖI: Gọi riêng biệt để tránh lỗi 1 trang làm hỏng cả 2
-      const cartRes = await api.get('/cart/my_cart/').catch(() => ({ data: { items: [] } }));
-      const orderRes = await api.get('/orders/').catch(() => ({ data: [] })); // <-- Đã sửa đường dẫn đúng
-      
+      const [cartRes, orderRes] = await Promise.all([
+        api.get('/cart/my_cart/').catch(() => ({ data: { items: [] } })),
+        api.get('/orders/').catch(() => ({ data: [] })),
+      ]);
       setItems(cartRes.data.items || []);
       setOrders(orderRes.data.results || orderRes.data || []);
     } catch (err) {
-      console.error('Lỗi khi tải dữ liệu giỏ hàng:', err);
+      console.error('Cart load error:', err);
     } finally {
       setLoading(false);
     }
@@ -48,107 +59,209 @@ export default function Cart() {
     try {
       await api.delete('/cart/remove_item/', { data: { course_id: courseId } });
       setItems(p => p.filter(i => i.course?.id !== courseId));
-      setMsg({ text: 'Đã xóa khỏi giỏ hàng.', type: 'info' });
+      setToast('Đã xóa khỏi giỏ hàng');
     } catch {
-      setMsg({ text: 'Không thể xóa sản phẩm.', type: 'error' });
+      setToast('Không thể xóa sản phẩm');
     } finally {
       setRemoving(null);
     }
   };
 
   const subtotal = items.reduce((s, i) => s + parseFloat(i.course?.price || 0), 0);
+  const discount = 0;
+  const total = subtotal - discount;
 
-  if (loading) return <div className="crs-loading">Đang tải giỏ hàng của bạn...</div>;
+  if (loading) return <Loading message="Đang tải giỏ hàng..." />;
 
   return (
-    <div className="cart-page-v3" style={{padding: '40px 64px', minHeight: '80vh'}}>
-      <div className="crs-breadcrumb" style={{marginBottom: '24px'}}>
-        <Link to="/" style={{textDecoration:'none', color:'#0056d2'}}>Trang chủ</Link>
-        <span style={{margin:'0 8px', color:'#ccc'}}>/</span>
+    <div className="crs-cart-page">
+      {/* Breadcrumb */}
+      <div className="crs-breadcrumb">
+        <Link to="/">Trang chủ</Link>
+        <span>/</span>
         <span>Giỏ hàng</span>
       </div>
 
-      <h1 style={{fontSize: '32px', fontWeight: 800, marginBottom: '32px'}}>Giỏ hàng của tôi</h1>
+      <h1 className="crs-page-header" style={{fontSize:'28px',fontWeight:800,marginBottom:0}}>Giỏ hàng</h1>
+      <p style={{color:'var(--muted)',fontSize:14,marginBottom:28}}>{items.length} khóa học trong giỏ hàng</p>
 
       {/* Tabs */}
-      <div style={{display: 'flex', gap: '32px', borderBottom: '1px solid #ddd', marginBottom: '32px'}}>
-        <button 
-          onClick={() => setTab('cart')}
-          style={{padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 700, borderBottom: tab === 'cart' ? '3px solid #0056d2' : 'none', color: tab === 'cart' ? '#0056d2' : '#666'}}>
-          Chờ thanh toán ({items.length})
+      <div className="crs-cart-tabs">
+        <button className={`crs-cart-tab ${tab==='cart'?'active':''}`} onClick={()=>setTab('cart')}>
+          🛒 Giỏ hàng ({items.length})
         </button>
-        <button 
-          onClick={() => setTab('orders')}
-          style={{padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 700, borderBottom: tab === 'orders' ? '3px solid #0056d2' : 'none', color: tab === 'orders' ? '#0056d2' : '#666'}}>
-          Đã mua ({orders.length})
+        <button className={`crs-cart-tab ${tab==='orders'?'active':''}`} onClick={()=>setTab('orders')}>
+          📦 Lịch sử mua hàng ({orders.length})
         </button>
       </div>
 
+      {/* ═══ TAB: GIỎ HÀNG ═══ */}
       {tab === 'cart' && (
         items.length === 0 ? (
-          <div style={{textAlign: 'center', padding: '100px 0'}}>
-            <div style={{fontSize: '64px', marginBottom: '16px'}}>🛒</div>
-            <h3>Giỏ hàng của bạn đang trống</h3>
-            <button className="crs-btn-solid" onClick={() => navigate('/')} style={{marginTop: '24px'}}>Khám phá khóa học ngay</button>
+          <div className="crs-cart-empty" style={{padding:'80px 20px'}}>
+            <div style={{fontSize:72,marginBottom:16}}>🛒</div>
+            <h3>Giỏ hàng trống</h3>
+            <p style={{marginBottom:24,color:'var(--muted)'}}>Khám phá hàng trăm khóa học chất lượng và bắt đầu hành trình học tập của bạn.</p>
+            <button className="crs-btn-solid" onClick={()=>navigate('/')} style={{padding:'14px 40px',fontSize:16}}>Khám phá khóa học</button>
           </div>
         ) : (
-          <div style={{display: 'flex', gap: '48px'}}>
-            <div style={{flex: 1}}>
-               {items.map((item, idx) => (
-                 <div key={item.id} style={{display: 'flex', gap: '20px', padding: '24px', border: '1px solid #eee', borderRadius: '8px', marginBottom: '16px'}}>
-                    <div style={{width: '120px', height: '80px', background: GRADS[idx % GRADS.length], borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '24px'}}>
-                      {fixText(item.course?.title)[0]}
+          <div className="crs-cart-layout">
+            {/* LEFT: Cart Items */}
+            <div className="crs-cart-items">
+              {items.map((item, idx) => (
+                <div key={item.id} className="crs-cart-item">
+                  <div className="crs-cart-thumb" style={{background: GRADS[idx % GRADS.length]}}>
+                    {fixText(item.course?.title)?.[0] || '?'}
+                  </div>
+                  <div className="crs-cart-info">
+                    <div className="crs-cart-title">{fixText(item.course?.title)}</div>
+                    <div className="crs-cart-org">{item.course?.partner_name || 'EduVNU Partner'}</div>
+                    <div style={{display:'flex',gap:6,marginBottom:4}}>
+                      <span className="badge">Bestseller</span>
+                      <span style={{fontSize:12,color:'var(--muted)'}}>⭐ 4.7 (2,340 đánh giá)</span>
                     </div>
-                    <div style={{flex: 1}}>
-                       <h4 style={{fontSize: '18px', fontWeight: 700, marginBottom: '4px'}}>{fixText(item.course?.title)}</h4>
-                       <p style={{fontSize: '14px', color: '#666'}}>{item.course?.partner_name || 'EduVNU Partner'}</p>
-                       <button 
-                         onClick={() => removeItem(item.course?.id)}
-                         style={{background: 'none', border: 'none', color: '#d32f2f', cursor: 'pointer', fontSize: '13px', marginTop: '12px', padding: 0}}>
-                         {removing === item.course?.id ? 'Đang xóa...' : 'Xóa khỏi giỏ'}
-                       </button>
+                    <div style={{fontSize:12,color:'var(--muted)'}}>5 bài giảng • Tất cả trình độ</div>
+                    <div style={{display:'flex', gap:16, marginTop:10}}>
+                      <button
+                        onClick={() => removeItem(item.course?.id)}
+                        className="crs-cart-remove"
+                        disabled={removing === item.course?.id}>
+                        {removing === item.course?.id ? 'Đang xóa...' : '🗑 Xóa'}
+                      </button>
+                      <button style={{background:'none',border:'none',color:'var(--blue)',cursor:'pointer',fontSize:13,padding:0}}>
+                        💾 Lưu để sau
+                      </button>
+                      <button onClick={()=>navigate(`/course/${item.course?.id}`)} style={{background:'none',border:'none',color:'var(--blue)',cursor:'pointer',fontSize:13,padding:0}}>
+                        👁 Xem chi tiết
+                      </button>
                     </div>
-                    <div style={{fontWeight: 700, fontSize: '18px', color: '#0056d2'}}>
-                       {parseFloat(item.course?.price || 0).toLocaleString()} đ
-                    </div>
-                 </div>
-               ))}
+                  </div>
+                  <div className="crs-cart-price">
+                    {parseFloat(item.course?.price || 0) === 0 ? (
+                      <span className="free-tag" style={{fontSize:16,padding:'4px 14px'}}>Miễn phí</span>
+                    ) : (
+                      <>
+                        <div>{parseFloat(item.course?.price || 0).toLocaleString('vi-VN')} ₫</div>
+                        <div style={{fontSize:13,color:'var(--muted)',textDecoration:'line-through'}}>
+                          {(parseFloat(item.course?.price || 0) * 1.5).toLocaleString('vi-VN')} ₫
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div style={{width: '350px'}}>
-               <div style={{padding: '24px', border: '1px solid #ddd', borderRadius: '8px', background: '#f8f9fa'}}>
-                  <h3 style={{marginBottom: '20px'}}>Tóm tắt đơn hàng</h3>
-                  <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '12px'}}>
-                    <span>Tạm tính:</span>
-                    <strong>{subtotal.toLocaleString()} đ</strong>
+            {/* RIGHT: Order Summary */}
+            <div className="crs-cart-sidebar">
+              <div className="crs-cart-summary">
+                <h3>Tóm tắt đơn hàng</h3>
+                <div className="crs-summary-row">
+                  <span>Tạm tính ({items.length} khóa):</span>
+                  <strong>{subtotal.toLocaleString('vi-VN')} ₫</strong>
+                </div>
+                {discount > 0 && (
+                  <div className="crs-summary-row" style={{color:'var(--success)'}}>
+                    <span>Giảm giá:</span>
+                    <strong>-{discount.toLocaleString('vi-VN')} ₫</strong>
                   </div>
-                  <div style={{borderTop: '1px solid #ddd', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', fontSize: '20px', fontWeight: 800}}>
-                    <span>Tổng cộng:</span>
-                    <span style={{color: '#0056d2'}}>{subtotal.toLocaleString()} đ</span>
+                )}
+                <div className="crs-summary-total">
+                  <span>Tổng cộng:</span>
+                  <span className="crs-summary-total-price">{total.toLocaleString('vi-VN')} ₫</span>
+                </div>
+
+                <button className="crs-checkout-btn" onClick={()=>navigate('/checkout')}>
+                  Thanh toán ngay
+                </button>
+
+                {/* Coupon */}
+                <div style={{marginTop:16}}>
+                  <div style={{fontSize:13,fontWeight:600,marginBottom:8,color:'var(--text)'}}>Mã giảm giá</div>
+                  <div style={{display:'flex',gap:8}}>
+                    <input
+                      value={coupon}
+                      onChange={e=>setCoupon(e.target.value)}
+                      placeholder="Nhập mã coupon"
+                      style={{flex:1,padding:'10px 14px',border:'1.5px solid var(--border)',borderRadius:4,fontSize:14,outline:'none'}}
+                    />
+                    <button className="crs-btn-outline" style={{padding:'10px 16px',whiteSpace:'nowrap'}}>Áp dụng</button>
                   </div>
-                  <button className="crs-btn-solid" onClick={() => navigate('/checkout')} style={{width: '100%', marginTop: '24px', padding: '16px'}}>Thanh toán ngay</button>
-               </div>
+                </div>
+
+                <div className="crs-secure">🔒 Thanh toán an toàn & bảo mật SSL</div>
+
+                {/* Trust Badges */}
+                <div style={{display:'flex',justifyContent:'center',gap:12,marginTop:14,flexWrap:'wrap'}}>
+                  {['💳 Visa','💳 MC','📱 MoMo','🏦 Bank'].map(b => (
+                    <span key={b} style={{fontSize:11,color:'var(--muted)',background:'var(--bg)',padding:'4px 8px',borderRadius:4}}>{b}</span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )
       )}
 
+      {/* ═══ TAB: LỊCH SỬ MUA HÀNG ═══ */}
       {tab === 'orders' && (
-        orders.map(order => (
-          <div key={order.id} style={{padding: '24px', border: '1px solid #eee', borderRadius: '8px', marginBottom: '16px'}}>
-             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '16px'}}>
-                <span style={{fontWeight: 700}}>Đơn hàng #{order.id} - {new Date(order.created_at).toLocaleDateString()}</span>
-                <span style={{padding: '4px 12px', background: '#dcfce7', color: '#16a34a', borderRadius: '20px', fontSize: '12px', fontWeight: 700}}>Đã thanh toán</span>
-             </div>
-             {order.items?.map(item => (
-               <div key={item.id} style={{display: 'flex', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #fafafa'}}>
-                  <span>{item.course?.title}</span>
-                  <button onClick={() => navigate(`/learn/${item.course?.id}`)} style={{background: 'none', border: 'none', color: '#0056d2', cursor: 'pointer', fontWeight: 700}}>Vào học</button>
-               </div>
-             ))}
+        orders.length === 0 ? (
+          <div className="crs-cart-empty" style={{padding:'80px 20px'}}>
+            <div style={{fontSize:72,marginBottom:16}}>📦</div>
+            <h3>Chưa có đơn hàng nào</h3>
+            <p style={{color:'var(--muted)',marginBottom:20}}>Bắt đầu học để tạo đơn hàng đầu tiên.</p>
+            <button className="crs-btn-solid" onClick={()=>navigate('/')}>Khám phá khóa học</button>
           </div>
-        ))
+        ) : (
+          <div className="crs-orders-list" style={{marginTop:4}}>
+            {orders.map((order, idx) => {
+              const isPaid = order.status === 'paid';
+              const isExpanded = expandedOrder === order.id;
+              return (
+                <div key={order.id} className="crs-order-row">
+                  <div className="crs-order-head" onClick={()=>setExpandedOrder(isExpanded?null:order.id)}>
+                    <div className="crs-order-left">
+                      <span className="crs-order-id">#{order.id}</span>
+                      <span className="crs-order-date">{new Date(order.created_at).toLocaleDateString('vi-VN')}</span>
+                    </div>
+                    <div className="crs-order-right">
+                      <span className={`crs-status-badge ${isPaid ? 'paid' : 'pending'}`}>
+                        {isPaid ? '✓ Đã thanh toán' : '⏳ Chờ xử lý'}
+                      </span>
+                      <span className="crs-order-price">{parseFloat(order.total_price||0).toLocaleString('vi-VN')} ₫</span>
+                      <span className="crs-expand">{isExpanded ? '▲' : '▼'}</span>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div className="crs-order-detail">
+                      {order.items?.map((item, i) => (
+                        <div key={item.id} className="crs-order-item">
+                          <div className="crs-oi-thumb" style={{background: GRADS[i % GRADS.length]}}>
+                            {item.course?.title?.[0] || '?'}
+                          </div>
+                          <div className="crs-oi-info">
+                            <div className="crs-oi-title">{fixText(item.course?.title || 'Khóa học')}</div>
+                            <div className="crs-oi-org">{item.course?.partner_name || 'EduVNU'}</div>
+                          </div>
+                          <span className="crs-oi-price">{parseFloat(item.price||0).toLocaleString('vi-VN')} ₫</span>
+                          {isPaid && (
+                            <button className="crs-paid-learn-btn" onClick={()=>navigate(`/learn/${item.course?.id}`)}>
+                              Vào học →
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
       )}
+
+      {/* Toast */}
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import usePageSEO from '../hooks/usePageSEO';
 
 export default function MyLearning() {
+  usePageSEO({ title: 'Việc học của tôi' });
   const [activeTab, setActiveTab] = useState('IN_PROGRESS');
 
   const tabs = [
