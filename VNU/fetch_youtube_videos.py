@@ -87,7 +87,9 @@ def main():
     if args.course_id:
         qs = qs.filter(course_id=args.course_id)
     if not args.overwrite:
-        qs = qs.filter(video_url__isnull=True) | qs.filter(video_url='')
+        # Lay ca NULL va empty string
+        from django.db.models import Q
+        qs = qs.filter(Q(video_url__isnull=True) | Q(video_url=''))
     qs = qs.order_by('course_id', 'order_number')[:args.limit]
 
     lessons = list(qs)
