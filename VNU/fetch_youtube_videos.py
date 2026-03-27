@@ -12,9 +12,10 @@ import os
 import sys
 import time
 import argparse
-import urllib.request
-import urllib.parse
 import json
+import re
+
+import requests
 
 # Setup Django
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -27,39 +28,56 @@ from courses.models import Lesson, Course
 
 
 def search_youtube(api_key, query, max_results=1):
-    """Tim video YouTube bang query, tra ve list video_id."""
-    params = urllib.parse.urlencode({
-        'part': 'snippet',
-        'q': query,
-        'type': 'video',
-        'maxResults': max_results,
-        'key': api_key,
-        'relevanceLanguage': 'en',
-        'videoEmbeddable': 'true',
-        'safeSearch': 'strict',
-    })
-    url = f'https://www.googleapis.com/youtube/v3/search?{params}'
+    """Tim video YouTube bang query, tra ve (video_url, title)."""
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-            items = data.get('items', [])
-            if items:
-                vid_id = items[0]['id']['videoId']
-                title = items[0]['snippet']['title']
-                return f'https://www.youtube.com/watch?v={vid_id}', title
+        resp = requests.get(
+            'https://www.googleapis.com/youtube/v3/search',
+            params={
+                'part': 'snippet',
+                'q': query,
+                'type': 'video',
+                'maxResults': max_results,
+                'key': api_key,
+                'videoEmbeddable': 'true',
+                'safeSearch': 'strict',
+            },
+            timeout=10
+        )
+        if resp.status_code != 200:
+            print(f'  [ERROR] HTTP {resp.status_code}: {resp.text[:200]}')
+            return None, None
+        data = resp.json()
+        items = data.get('items', [])
+        if items:
+            vid_id = items[0]['id']['videoId']
+            title = items[0]['snippet']['title']
+            return f'https://www.youtube.com/watch?v={vid_id}', title
     except Exception as e:
-        print(f'  [ERROR] YouTube API: {e}')
+        print(f'  [ERROR] {e}')
     return None, None
 
 
 def build_query(course_title, lesson_title):
-    """Tao query tim kiem YouTube tu ten khoa hoc va bai hoc."""
-    # Uu tien tim chinh xac theo ten bai hoc + khoa hoc
-    query = f'{lesson_title} {course_title} tutorial'
-    # Gioi han do dai query
-    if len(query) > 100:
-        query = f'{lesson_title} tutorial course'
-    return query
+    """Tao query tim kiem YouTube - dung tieng Anh de tranh loi encoding."""
+    # Loai bo so thu tu bai hoc (1., 2., etc.)
+    clean_lesson = re.sub(r'^\d+\.\s*', '', lesson_title).strip()
+    # Loai bo tieng Viet co dau (giu lai tieng Anh)
+    # Neu ten bai hoc la tieng Viet, dung ten khoa hoc lam query chinh
+    has_vietnamese = any(c in clean_lesson for c in 'àáâãèéêìíòóôõùúýăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ')
+    if has_vietnamese:
+        # Dung ten khoa hoc (tieng Anh) + keyword chung
+        keywords = ['introduction', 'tutorial', 'course', 'lecture', 'lesson']
+        order = lesson_title.split('.')[0].strip() if '.' in lesson_title else '1'
+        try:
+            num = int(order)
+            keyword = keywords[min(num-1, len(keywords)-1)]
+        except:
+            keyword = 'tutorial'
+        query = f'{course_title} {keyword}'
+    else:
+        query = f'{clean_lesson} {course_title} tutorial'
+    # Gioi han 100 ky tu
+    return query[:100]
 
 
 def main():
