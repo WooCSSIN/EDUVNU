@@ -14,6 +14,11 @@ import Orders from './pages/Orders';
 import Degrees from './pages/Degrees';
 import CourseDetail from './pages/CourseDetail';
 import NotFound from './pages/NotFound';
+import Contact from './pages/Contact';
+import MockVNPay from './pages/MockVNPay';
+import MockMoMo from './pages/MockMoMo';
+import SePayCheckout from './pages/SePayCheckout';
+import StripeCheckout from './pages/StripeCheckout';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import api from './api/axios';
 
@@ -201,6 +206,12 @@ function AppLayout() {
           <Route path="/payment-return" element={<PaymentReturn />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/degrees" element={<Degrees />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/mock-vnpay" element={<MockVNPay />} />
+          <Route path="/mock-momo" element={<MockMoMo />} />
+          <Route path="/sepay-checkout" element={<SePayCheckout />} />
+          <Route path="/stripe-checkout" element={<StripeCheckout />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
@@ -235,7 +246,7 @@ function AppLayout() {
             <a href="#">Giới thiệu</a>
             <a href="#">Tuyển dụng</a>
             <a href="#">Trợ giúp</a>
-            <a href="#">Liên hệ</a>
+            <Link to="/contact">Liên hệ</Link>
           </div>
         </div>
         <div className="crs-footer-bottom">

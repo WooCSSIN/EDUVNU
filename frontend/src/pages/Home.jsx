@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { fixText, parseMetadata } from '../utils/fixEncoding';
+import { getCourseThumbnail } from '../utils/courseImages';
 import { Loading, SkeletonCard } from '../components/LoadingUI';
 import usePageSEO from '../hooks/usePageSEO';
 
@@ -18,6 +19,7 @@ export default function Home() {
   const [addingId, setAddingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
+  const [ordering, setOrdering] = useState(''); // New ordering state
   const [toast, setToast] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -37,7 +39,7 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => fetchCourses(), 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, activeCategory]);
+  }, [searchQuery, activeCategory, ordering]);
 
   const fetchCourses = async () => {
     setLoading(true);
@@ -45,6 +47,7 @@ export default function Home() {
       const params = new URLSearchParams();
       if (searchQuery) params.append('q', searchQuery);
       if (activeCategory) params.append('category', activeCategory);
+      if (ordering) params.append('ordering', ordering);
       const res = await api.get('/courses/courses/?' + params.toString());
       setCourses(Array.isArray(res.data) ? res.data : (res.data.results || []));
     } catch { setCourses([]); }
@@ -101,11 +104,28 @@ export default function Home() {
              ))}
            </div>
            
-           <div className="search-box" style={{position: 'relative', width: '300px'}}>
-             <input type="text" placeholder="Bạn muốn học gì?" 
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    style={{width: '100%', padding: '12px 16px', borderRadius: '4px', border: '1px solid #ccc'}} />
+           
+           <div style={{display: 'flex', gap: '16px'}}>
+             <div className="search-box" style={{position: 'relative', width: '250px'}}>
+               <input type="text" placeholder="Bạn muốn học gì?" 
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      style={{width: '100%', padding: '10px 16px', borderRadius: '4px', border: '1px solid #ccc'}} />
+             </div>
+             
+             <div className="sort-box" style={{position: 'relative', width: '200px'}}>
+               <select 
+                  value={ordering} 
+                  onChange={e => setOrdering(e.target.value)}
+                  style={{width: '100%', padding: '10px 16px', borderRadius: '4px', border: '1px solid #ccc', background: 'white', cursor: 'pointer'}}
+               >
+                 <option value="">Sắp xếp mặc định</option>
+                 <option value="-created_at">Mới nhất</option>
+                 <option value="price">Giá: Thấp đến cao</option>
+                 <option value="-price">Giá: Cao đến thấp</option>
+                 <option value="-rating_avg">Đánh giá cao nhất</option>
+               </select>
+             </div>
            </div>
         </nav>
 
@@ -122,10 +142,17 @@ export default function Home() {
               
               return (
                 <Link to={`/course/${course.id}`} key={course.id} style={{textDecoration: 'none', color: 'inherit'}}>
-                  <div className="course-card" style={{border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%'}}>
-                    <div className="univ-strip" style={{padding: '16px', background: 'linear-gradient(135deg,#003d99,#0056D2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10}}>
-                       <span style={{width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,.2)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:800,fontSize:16}}>{fixText(course.title)?.[0] || 'E'}</span>
-                       <span style={{color:'white',fontSize:13,fontWeight:600,opacity:0.9}}>{instructorName}</span>
+                  <div className="course-card" style={{border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative'}}>
+                    {course.original_price && course.original_price > course.price && (
+                      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: '#dc2626', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                        Giảm {Math.round((1 - course.price / course.original_price) * 100)}%
+                      </div>
+                    )}
+                    <div className="course-thumb" style={{ height: '140px', background: '#e5e7eb', position: 'relative' }}>
+                      <img src={getCourseThumbnail(course)} alt={fixText(course.title)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 12px 8px', background: 'linear-gradient(transparent, rgba(0,0,0,0.8))', color: 'white', fontSize: 13, fontWeight: 600 }}>
+                        {instructorName}
+                      </div>
                     </div>
                     <div className="course-body" style={{padding: '16px', flexGrow: 1, display: 'flex', flexDirection: 'column'}}>
                       <p style={{fontSize: '12px', color: '#666', fontWeight: '600', marginBottom: '4px'}}>{instructorName}</p>
@@ -135,11 +162,20 @@ export default function Home() {
                       <div style={{marginTop: 'auto'}}>
                         <div className="rating" style={{fontSize: '13px'}}>⭐⭐⭐⭐⭐ {course.rating_avg} ({course.num_reviews?.toLocaleString()})</div>
                         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px'}}>
-                          <span style={{fontSize: '14px', fontWeight: '600', color: '#0056d2'}}> {course.price > 0 ? `${parseFloat(course.price).toLocaleString('vi-VN')} đ` : 'Miễn phí'} </span>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            {course.original_price && course.original_price > course.price && (
+                              <span style={{ fontSize: '12px', textDecoration: 'line-through', color: '#888' }}>
+                                {parseFloat(course.original_price).toLocaleString('vi-VN')} đ
+                              </span>
+                            )}
+                            <span style={{fontSize: '16px', fontWeight: '700', color: '#0056d2'}}> 
+                              {course.price > 0 ? `${parseFloat(course.price).toLocaleString('vi-VN')} đ` : 'Miễn phí'} 
+                            </span>
+                          </div>
                           <button onClick={(e) => addToCart(e, course.id)} 
                                   aria-label={`Thêm ${fixText(course.title)} vào giỏ hàng`}
-                                  style={{background: addingId === course.id ? '#ddd' : '#0056d2', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer'}}>
-                            {addingId === course.id ? '...' : '+'}
+                                  style={{background: addingId === course.id ? '#ddd' : '#0056d2', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>
+                            {addingId === course.id ? '...' : '+ Thêm'}
                           </button>
                         </div>
                       </div>

@@ -2,10 +2,10 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
-from .models import Category, Course, Lesson, Enrollment, UserProgress, Review
+from .models import Category, Course, Lesson, Enrollment, UserProgress, Review, ContactMessage
 from .serializers import (
     CategorySerializer, CourseSerializer, CourseDetailSerializer,
-    LessonSerializer, EnrollmentSerializer, UserProgressSerializer, ReviewSerializer
+    LessonSerializer, EnrollmentSerializer, UserProgressSerializer, ReviewSerializer, ContactMessageSerializer
 )
 
 
@@ -22,10 +22,16 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         qs = Course.objects.filter(is_active=True)
         q = self.request.query_params.get('q', '').strip()
         category_id = self.request.query_params.get('category', '')
+        ordering_param = self.request.query_params.get('ordering', '')
+        
         if q:
             qs = qs.filter(Q(title__icontains=q) | Q(description__icontains=q))
         if category_id:
             qs = qs.filter(category_id=category_id)
+            
+        if ordering_param:
+            qs = qs.order_by(ordering_param)
+            
         return qs
 
     def retrieve(self, request, *args, **kwargs):
@@ -124,3 +130,8 @@ class ReviewViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+class ContactMessageViewSet(viewsets.ModelViewSet):
+    queryset = ContactMessage.objects.all()
+    serializer_class = ContactMessageSerializer
+    permission_classes = [permissions.AllowAny]

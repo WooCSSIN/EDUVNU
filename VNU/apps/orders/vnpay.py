@@ -1,57 +1,70 @@
+"""
+VNPAY 2.1.0 - Helper Module
+Theo đúng source code demo chính thức VNPAY Python:
+https://sandbox.vnpayment.vn/apis/vnpay-demo/code-demo-tích-hợp
+
+Spec chuẩn VNPAY:
+- Sort tham số theo thứ tự alphabet (A-Z)
+- Cả hash string VÀ query string đều dùng urllib.parse.quote_plus
+- Hash algorithm: HMAC-SHA512
+"""
 import hashlib
 import hmac
 import urllib.parse
 
+
 class vnpay:
-    requestData = {}
-    responseData = {}
+    def __init__(self):
+        self.requestData = {}
+        self.responseData = {}
 
-    def get_mac(self, secret_key):
+    def get_payment_url(self, vnpay_url, hash_secret):
+        """
+        Tạo URL thanh toán theo đúng chuẩn VNPAY 2.1.0.
+        Cả hash data lẫn query string đều dùng quote_plus.
+        """
+        inputData = sorted(self.requestData.items())
+        queryString = ''
         hasData = ''
         seq = 0
-        for key, val in sorted(self.requestData.items()):
+        for key, val in inputData:
             if seq == 1:
-                hasData = hasData + "&" + str(key) + '=' + urllib.parse.quote_plus(str(val))
+                queryString += '&' + key + '=' + urllib.parse.quote_plus(str(val))
+                hasData += '&' + key + '=' + urllib.parse.quote_plus(str(val))
             else:
                 seq = 1
-                hasData = str(key) + '=' + urllib.parse.quote_plus(str(val))
-        hashValue = self.__md5(secret_key, hasData)
-        return hashValue
+                queryString = key + '=' + urllib.parse.quote_plus(str(val))
+                hasData = key + '=' + urllib.parse.quote_plus(str(val))
 
-    def get_payment_url(self, vnpay_payment_url, secret_key):
-        signValue = self.get_mac(secret_key)
-        url = vnpay_payment_url + "?"
-        seq = 0
-        for key, val in sorted(self.requestData.items()):
-            if seq == 1:
-                url = url + "&" + str(key) + '=' + urllib.parse.quote_plus(str(val))
-            else:
-                seq = 1
-                url = url + str(key) + '=' + urllib.parse.quote_plus(str(val))
-        url = url + '&vnp_SecureHash=' + signValue
-        return url
+        hash_value = self._hmac_sha512(hash_secret, hasData)
+        return f"{vnpay_url}?{queryString}&vnp_SecureHash={hash_value}"
 
-    def validate_response(self, secret_key):
-        vnp_SecureHash = self.responseData.get('vnp_SecureHash')
-        if 'vnp_SecureHash' in self.responseData:
-            self.responseData.pop('vnp_SecureHash')
-        if 'vnp_SecureHashType' in self.responseData:
-            self.responseData.pop('vnp_SecureHashType')
-        
+    def validate_response(self, hash_secret):
+        """
+        Xác thực chữ ký số trả về từ VNPAY.
+        """
+        vnp_secure_hash = self.responseData.get('vnp_SecureHash', '')
+
+        # Loại bỏ các tham số liên quan đến hash
+        data = {k: v for k, v in self.responseData.items()
+                if k not in ('vnp_SecureHash', 'vnp_SecureHashType')}
+
+        inputData = sorted(data.items())
         hasData = ''
         seq = 0
-        for key, val in sorted(self.responseData.items()):
-            if str(key).startswith('vnp_'):
-                if seq == 1:
-                    hasData = hasData + "&" + str(key) + '=' + urllib.parse.quote_plus(str(val))
-                else:
-                    seq = 1
-                    hasData = str(key) + '=' + urllib.parse.quote_plus(str(val))
-        hashValue = self.__md5(secret_key, hasData)
-        return vnp_SecureHash == hashValue
+        for key, val in inputData:
+            if seq == 1:
+                hasData += '&' + key + '=' + urllib.parse.quote_plus(str(val))
+            else:
+                seq = 1
+                hasData = key + '=' + urllib.parse.quote_plus(str(val))
 
-    @staticmethod
-    def __md5(secret_key, data):
-        data = data.encode('utf-8')
-        secret_key = secret_key.encode('utf-8')
-        return hmac.new(secret_key, data, hashlib.sha512).hexdigest()
+        calculated_hash = self._hmac_sha512(hash_secret, hasData)
+        return calculated_hash.lower() == vnp_secure_hash.lower()
+
+    def _hmac_sha512(self, key, data):
+        return hmac.new(
+            key.encode('utf-8'),
+            data.encode('utf-8'),
+            hashlib.sha512
+        ).hexdigest()

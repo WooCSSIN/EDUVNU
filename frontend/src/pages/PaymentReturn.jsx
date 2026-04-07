@@ -1,33 +1,51 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { Loading } from '../components/LoadingUI';
 import usePageSEO from '../hooks/usePageSEO';
 
 export default function PaymentReturn() {
-  usePageSEO({ title: 'Kết quả thanh toán VNPAY' });
+  usePageSEO({ title: 'Kết quả giao dịch' });
   const location = useLocation();
   const navigate = useNavigate();
   const [status, setStatus] = useState('processing');
-  const [message, setMessage] = useState('Đang xử lý kết quả thanh toán từ VNPAY...');
+  const [message, setMessage] = useState('Đang xử lý kết quả giao dịch...');
   const [orderId, setOrderId] = useState(null);
 
   useEffect(() => {
     const processPayment = async () => {
-      if (!location.search) {
+      const params = new URLSearchParams(location.search);
+      
+      // 1. Kiểm tra nếu là thanh toán trực tiếp thành công (Stripe card, SePay...)
+      if (params.get('mock') || params.get('method') === 'card' || params.get('method') === 'chuyen_khoan') {
+        setStatus('success');
+        setMessage('Giao dịch đã được ghi nhận hệ thống.');
+        setOrderId(params.get('order_id'));
+        return;
+      }
+
+      // 2. Xác định Endpoint Backend dựa trên tham số trả về
+      let endpoint = '';
+      if (params.get('vnp_ResponseCode')) {
+        endpoint = `/orders/vnpay_return/${location.search}`;
+      } else if (params.get('resultCode')) {
+        endpoint = `/orders/momo_return/${location.search}`;
+      }
+
+      if (!endpoint) {
         setStatus('error');
-        setMessage('Không tìm thấy dữ liệu thanh toán.');
+        setMessage('Tham số trả về không hợp lệ hoặc không xác định được cổng thanh toán.');
         return;
       }
 
       try {
-        const res = await api.get(`/orders/vnpay_return/${location.search}`);
+        const res = await api.get(endpoint);
         setStatus('success');
-        setMessage(res.data.message || 'Thanh toán thành công! Khóa học đã được kích hoạt.');
+        setMessage(res.data.message || 'Giao dịch thành công!');
         setOrderId(res.data.order_id);
       } catch (err) {
         setStatus('error');
-        setMessage(err.response?.data?.error || 'Giao dịch bị hủy hoặc không thành công.');
+        setMessage(err.response?.data?.message || 'Xác nhận giao dịch thất bại.');
         setOrderId(err.response?.data?.order_id || null);
       }
     };
@@ -40,37 +58,40 @@ export default function PaymentReturn() {
   const isSuccess = status === 'success';
 
   return (
-    <main className="crs-checkout-page" style={{minHeight:'60vh', display:'flex', alignItems:'center', justifyContent:'center'}}>
-      <div className="crs-done-card" style={{textAlign:'center', background:'white', padding:'40px', borderRadius:'12px', boxShadow:'0 4px 20px rgba(0,0,0,0.08)', maxWidth:'500px', width:'100%'}}>
-        <div style={{fontSize:'64px', marginBottom:'16px'}}>
+    <main className="crs-pr-page">
+      <div className="crs-pr-card">
+        <div className={`crs-pr-icon ${isSuccess ? 'success' : 'error'}`}>
           {isSuccess ? '✅' : '❌'}
         </div>
-        <h2 style={{color: isSuccess ? 'var(--success)' : 'var(--danger)', marginBottom:'8px'}}>
-          {isSuccess ? 'Thanh toán thành công!' : 'Thanh toán thất bại'}
+        <h2 className={`crs-pr-title ${isSuccess ? 'success' : 'error'}`}>
+          {isSuccess ? 'Giao dịch thành công!' : 'Giao dịch thất bại'}
         </h2>
-        <p style={{color:'var(--muted)', marginBottom:'24px', lineHeight:'1.6'}}>
+        <p className="crs-pr-message">
           {message}
         </p>
 
         {orderId && (
-          <div style={{background:'var(--bg)', padding:'16px', borderRadius:'8px', marginBottom:'24px'}}>
-            <span style={{color:'var(--muted)'}}>Mã đơn hàng: </span>
+          <div className="crs-pr-order-box">
+            <span style={{color: 'var(--crs-text-muted)'}}>Mã đơn hàng: </span>
             <strong>#{orderId}</strong>
           </div>
         )}
 
-        <div style={{display:'flex', gap:'12px', justifyContent:'center'}}>
+        <div className="crs-pr-actions">
           {isSuccess ? (
             <button className="crs-btn-solid" onClick={() => navigate('/schedule')}>
               🎓 Bắt đầu học ngay
             </button>
           ) : (
             <button className="crs-btn-solid" onClick={() => navigate('/checkout')}>
-               Thử lại
+              Thử lại
             </button>
           )}
           <button className="crs-btn-outline" onClick={() => navigate('/orders')}>
             📦 Lịch sử đơn hàng
+          </button>
+          <button className="crs-btn-outline" onClick={() => navigate('/contact')}>
+            💬 Liên hệ CSKH
           </button>
         </div>
       </div>

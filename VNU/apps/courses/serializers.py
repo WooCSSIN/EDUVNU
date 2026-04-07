@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Course, Lesson, Enrollment, UserProgress, Review
+from .models import Category, Course, Lesson, Enrollment, UserProgress, Review, ContactMessage
 from accounts.models import User
 
 
@@ -66,4 +66,10 @@ class ReviewSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Review
+        fields = '__all__'
+
+
+class ContactMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactMessage
         fields = '__all__'

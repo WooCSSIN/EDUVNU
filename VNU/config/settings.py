@@ -13,9 +13,13 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 import os
 import sys
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 # Add apps directory to sys.path
 sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
@@ -25,10 +29,10 @@ sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ih&e!l0lw3^(1wanlw$w-!p#v(y=q*1c+1bk0aah1j$+u%eq#_'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-ih&e!l0lw3^(1wanlw$w-!p#v(y=q*1c+1bk0aah1j$+u%eq#_')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*']
 
@@ -171,3 +175,23 @@ SIMPLE_JWT = {
 
 CORS_ALLOW_ALL_ORIGINS = True  # Useful for local dev with React on port 5173
 CORS_ALLOW_CREDENTIALS = True
+
+# ─── VNPAY Payment Settings ──────────────────────────────────
+# Đăng ký sandbox tại: https://sandbox.vnpayment.vn/devreg/
+# Sau khi đăng ký, lấy TmnCode và HashSecret từ trang quản trị và điền vào đây.
+VNPAY_TMN_CODE = os.getenv('VNPAY_TMN_CODE', 'GR1Z38XD')
+VNPAY_HASH_SECRET = os.getenv('VNPAY_HASH_SECRET', 'T1SXW4II9HOG8ZKK8DF2UJF1I59YWB29')
+VNPAY_PAYMENT_URL = 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'
+VNPAY_RETURN_URL = 'http://localhost:5173/payment-return'
+VNPAY_IPN_URL = 'http://localhost:8000/api/v1/orders/vnpay_ipn/'  # Cần tunnel khi test local
+
+# ─── MoMo Payment Settings ────────────────────────────────────
+# Sandbox keys chính thức từ MoMo Developer Portal
+MOMO_PARTNER_CODE = os.getenv('MOMO_PARTNER_CODE', 'MOMO')
+MOMO_ACCESS_KEY = os.getenv('MOMO_ACCESS_KEY', 'F8BBA842ECF85')
+MOMO_SECRET_KEY = os.getenv('MOMO_SECRET_KEY', 'K951B6PE1waRX')
+MOMO_ENDPOINT = 'https://test-payment.momo.vn/v2/gateway/api/create'
+
+# ─── Stripe Payment Settings ───────────────────────────────────
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')

@@ -1,413 +1,695 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { fixText } from '../utils/fixEncoding';
 import usePageSEO from '../hooks/usePageSEO';
+import { getCourseThumbnail } from '../utils/courseImages';
 
+/* ── GRADIENT PALETTE ── */
 const GRADS = [
-  'linear-gradient(135deg,#0369a1,#0ea5e9)',
-  'linear-gradient(135deg,#7c3aed,#a78bfa)',
-  'linear-gradient(135deg,#0891b2,#22d3ee)',
-  'linear-gradient(135deg,#059669,#34d399)',
-  'linear-gradient(135deg,#b45309,#f59e0b)',
+  'linear-gradient(135deg,#0056D2 0%,#0099e0 100%)',
+  'linear-gradient(135deg,#7c3aed 0%,#a78bfa 100%)',
+  'linear-gradient(135deg,#0891b2 0%,#22d3ee 100%)',
+  'linear-gradient(135deg,#059669 0%,#34d399 100%)',
+  'linear-gradient(135deg,#b45309 0%,#f59e0b 100%)',
 ];
 
-function Stars({ rating }) {
-  const n = Math.round(parseFloat(rating) || 0);
+/* ── STARS COMPONENT ── */
+function Stars({ rating, size = 14 }) {
+  const n = parseFloat(rating) || 0;
   return (
-    <span>
-      {[1,2,3,4,5].map(i => (
-        <span key={i} style={{ color: i <= n ? '#f59e0b' : '#d1d5db', fontSize: 16 }}>★</span>
+    <span style={{ display: 'inline-flex', gap: 1 }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <span key={i} style={{ color: i <= n ? '#f59e0b' : '#d1d5db', fontSize: size }}>★</span>
       ))}
     </span>
   );
 }
 
+/* ── MAIN COMPONENT ── */
 export default function CourseDetail() {
   const { courseId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const stickyNavRef = useRef(null);
+  const sectionsRef = useRef({});
 
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [addingCart, setAddingCart] = useState(false);
   const [toast, setToast] = useState('');
-  const [activeTab, setActiveTab] = useState('overview');
-  const [expandedSection, setExpandedSection] = useState(0);
+  const [activeNav, setActiveNav] = useState('about');
+  const [expandedModule, setExpandedModule] = useState(0);
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [showFullDesc, setShowFullDesc] = useState(false);
+  const [stickyVisible, setStickyVisible] = useState(false);
 
-  // ❗ usePageSEO must be called unconditionally BEFORE any early returns (Rules of Hooks)
+  /* SEO — must be before any early return */
   usePageSEO({
     title: course ? fixText(course.title) : 'Chi tiết khóa học',
-    description: course
-      ? (course.description?.slice(0, 160) || `Khóa học ${fixText(course.title)} tại EduVNU`)
-      : 'EduVNU - Xem chi tiết khóa học',
+    description: course?.description?.slice(0, 160) || 'EduVNU - Xem chi tiết khóa học',
   });
 
-  useEffect(() => {
-    loadCourse();
-  }, [courseId]);
+  /* Load course data */
+  useEffect(() => { loadCourse(); }, [courseId]);
 
-  // Fetch real reviews when user clicks Đánh giá tab
+  /* Sticky nav scroll watcher */
   useEffect(() => {
-    if (activeTab === 'reviews' && courseId) {
+    const onScroll = () => setStickyVisible(window.scrollY > 380);
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  /* Fetch reviews when tab active */
+  useEffect(() => {
+    if (activeNav === 'testimonials' && courseId) {
       setReviewsLoading(true);
       api.get(`/courses/courses/${courseId}/reviews/`)
         .then(r => setReviews(r.data?.results || r.data || []))
-        .catch(() => setReviews([]))  // Fallback to demo data if API missing
+        .catch(() => setReviews([]))
         .finally(() => setReviewsLoading(false));
     }
-  }, [activeTab, courseId]);
+  }, [activeNav, courseId]);
 
   const loadCourse = async () => {
     setLoading(true);
     try {
       const res = await api.get(`/courses/courses/${courseId}/`);
       setCourse(res.data);
-      // Kiểm tra enrolled thực sự qua enrollment API
       if (user) {
         try {
           const enrollRes = await api.get(`/courses/progress/my_progress/?course_id=${courseId}`);
-          // Nếu có dữ liệu progress => đã ghi danh
-          if (enrollRes.data && enrollRes.data.length > 0) setIsEnrolled(true);
+          if (enrollRes.data?.length > 0) setIsEnrolled(true);
           else {
-            // Kiểm tra thêm qua lessons API (nếu trả 200 = đã enrolled)
             await api.get(`/courses/courses/${courseId}/lessons/`);
             setIsEnrolled(true);
           }
-        } catch {
-          setIsEnrolled(false);
-        }
+        } catch { setIsEnrolled(false); }
       }
     } catch { navigate('/'); }
     finally { setLoading(false); }
   };
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
   const addToCart = async () => {
     if (!user) { navigate('/login'); return; }
     setAddingCart(true);
     try {
       await api.post('/cart/add_item/', { course_id: courseId });
-      showToast('Đã thêm vào giỏ hàng!');
+      showToast('✅ Đã thêm vào giỏ hàng!');
     } catch (err) {
-      showToast(err.response?.data?.message || err.response?.data?.error || 'Không thể thêm.');
+      showToast(err.response?.data?.message || err.response?.data?.error || 'Không thể thêm vào giỏ hàng.');
     } finally { setAddingCart(false); }
   };
 
-  if (loading) return <div className="crs-loading">Đang tải...</div>;
+  const scrollToSection = id => {
+    const el = sectionsRef.current[id];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setActiveNav(id);
+  };
+
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: 48, height: 48, border: '4px solid #e5e7eb', borderTopColor: '#0056D2', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <p style={{ color: '#6b7280' }}>Đang tải khóa học...</p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
   if (!course) return null;
 
+  /* Derived data */
   const title = fixText(course.title);
-  // Fix: Use full name chain so 'Giảng viên' fallback only when truly no name available
   const instructor = course.instructor;
   const org = fixText(
     instructor?.full_name ||
     (instructor?.first_name && instructor?.last_name ? `${instructor.first_name} ${instructor.last_name}` : null) ||
-    instructor?.first_name ||
-    instructor?.username ||
-    course.partner_name ||
-    'EduVNU Partner'
+    instructor?.first_name || instructor?.username ||
+    course.partner_name || 'EduVNU Partner'
   );
-  const rating = parseFloat(course.rating) || 0;
+  const rating = parseFloat(course.rating) || 4.6;
   const price = parseFloat(course.price) || 0;
   const skills = Array.isArray(course.skills_list) ? course.skills_list : [];
   const gradIdx = parseInt(courseId) % GRADS.length;
-  // Thumbnail: use real image if available, else gradient avatar
-  const thumbnailUrl = course.thumbnail || course.thumbnail_url || course.image || null;
+  // Use user's local images
+  const thumbnailUrl = getCourseThumbnail({ ...course, id: courseId });
+  const reviewCount = course.review_count || '10,000+';
+  const enrollCount = course.enrollment_count || '150,000+';
+  const originalPrice = parseFloat(course.original_price) || 0;
+  const isDiscounted = originalPrice > price && price > 0;
 
-  // (SEO now applied above, before early returns)
-
-  // Tạo mock curriculum từ skills
+  /* Mock curriculum from skills */
   const curriculum = skills.length > 0
     ? [
-        { title: 'Giới thiệu & Tổng quan', lessons: ['Giới thiệu khóa học', 'Cài đặt môi trường', 'Tổng quan nội dung'] },
-        { title: 'Kiến thức nền tảng', lessons: skills.slice(0, 3).map(s => `Học về ${s}`) },
-        { title: 'Thực hành & Dự án', lessons: ['Bài tập thực hành', 'Dự án cuối khóa', 'Đánh giá & Chứng chỉ'] },
+        { title: 'Giới thiệu & Tổng quan', duration: '3 giờ', lessons: ['Giới thiệu khóa học', 'Cài đặt môi trường', 'Tổng quan nội dung'] },
+        { title: `Kiến thức về ${skills[0] || 'Nền tảng'}`, duration: '8 giờ', lessons: skills.slice(0, 4).map(s => `Học về ${s}`) },
+        { title: 'Thực hành & Dự án', duration: '12 giờ', lessons: ['Bài tập thực hành', 'Dự án cuối khóa', 'Đánh giá & Chứng chỉ'] },
       ]
     : [
-        { title: 'Module 1: Giới thiệu', lessons: ['Bài 1: Tổng quan', 'Bài 2: Cài đặt', 'Bài 3: Bắt đầu'] },
-        { title: 'Module 2: Nội dung chính', lessons: ['Bài 4: Lý thuyết', 'Bài 5: Thực hành', 'Bài 6: Bài tập'] },
-        { title: 'Module 3: Nâng cao', lessons: ['Bài 7: Chuyên sâu', 'Bài 8: Dự án', 'Bài 9: Tổng kết'] },
+        { title: 'Module 1: Giới thiệu', duration: '4 giờ', lessons: ['Bài 1: Tổng quan', 'Bài 2: Cài đặt', 'Bài 3: Bắt đầu'] },
+        { title: 'Module 2: Nội dung chính', duration: '10 giờ', lessons: ['Bài 4: Lý thuyết', 'Bài 5: Thực hành', 'Bài 6: Bài tập'] },
+        { title: 'Module 3: Nâng cao', duration: '8 giờ', lessons: ['Bài 7: Chuyên sâu', 'Bài 8: Dự án', 'Bài 9: Tổng kết'] },
       ];
-
   const totalLessons = curriculum.reduce((s, c) => s + c.lessons.length, 0);
 
-  return (
-    <div className="cd-page">
-      {toast && <div className="toast">{toast}</div>}
+  const whatYouLearn = skills.length >= 4
+    ? skills.slice(0, 8)
+    : ['Kiến thức nền tảng vững chắc', 'Kỹ năng thực hành thực tế', 'Tư duy phản biện & giải quyết vấn đề', 'Ứng tuyển và phát triển sự nghiệp', ...skills];
 
-      {/* HERO BANNER */}
-      <div className="cd-hero" style={{ background: GRADS[gradIdx] }}>
-        <div className="cd-hero-inner">
-          <div className="cd-hero-content">
-            {/* BREADCRUMB */}
-            <nav aria-label="Breadcrumb" className="cd-breadcrumb">
-              <Link to="/" className="cd-bc-link">Trang chủ</Link>
-              <span aria-hidden="true">/</span>
-              <Link to="/" className="cd-bc-link">{fixText(course.category?.name) || 'Khóa học'}</Link>
-              <span aria-hidden="true">/</span>
-              <span aria-current="page">{title.length > 40 ? title.slice(0, 40) + '…' : title}</span>
+  const DEMO_REVIEWS = [
+    { name: 'Nguyễn Văn A', role: 'Software Engineer', rating: 5, text: 'Khóa học rất hay, giảng viên giải thích rõ ràng và dễ hiểu. Kiến thức thực tế, áp dụng được ngay vào công việc.' },
+    { name: 'Trần Thị B', role: 'Product Manager', rating: 5, text: 'Nội dung phong phú, thực hành nhiều. Rất phù hợp cho người mới bắt đầu lẫn người muốn nâng cao kỹ năng.' },
+    { name: 'Lê Minh C', role: 'Data Analyst', rating: 4, text: 'Tuyệt vời! Một trong những khóa học tốt nhất tôi từng tham gia. Chứng chỉ được nhiều công ty công nhận.' },
+  ];
+
+  const NAV_ITEMS = [
+    { id: 'about', label: 'Giới thiệu' },
+    { id: 'outcomes', label: 'Kết quả học tập' },
+    { id: 'courses', label: 'Nội dung' },
+    { id: 'testimonials', label: 'Đánh giá' },
+  ];
+
+  /* ── ENROLLMENT CARD ── */
+  const EnrollCard = ({ compact = false }) => (
+    <div style={{
+      background: '#fff',
+      borderRadius: compact ? 0 : 12,
+      boxShadow: compact ? 'none' : '0 4px 24px rgba(0,0,0,0.12)',
+      overflow: 'hidden',
+      border: compact ? 'none' : '1px solid #e5e7eb',
+    }}>
+      {/* Thumbnail */}
+      {!compact && (
+        <div style={{ height: 180, background: GRADS[gradIdx], position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {thumbnailUrl && (
+            <img src={thumbnailUrl} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={e => { e.target.style.display = 'none'; if(e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; }} />
+          )}
+          <span style={{ fontSize: 72, color: 'rgba(255,255,255,0.85)', fontWeight: 800, display: thumbnailUrl ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {org[0]?.toUpperCase() || 'E'}
+          </span>
+        </div>
+      )}
+      <div style={{ padding: compact ? '12px 20px' : 24 }}>
+        {!compact && (
+          <div style={{ marginBottom: 16 }}>
+            {isDiscounted && (
+              <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                 <span style={{ fontSize: 16, textDecoration: 'line-through', color: '#6b7280' }}>
+                   {originalPrice.toLocaleString('vi-VN')} ₫
+                 </span>
+                 <span style={{ background: '#dc2626', color: 'white', padding: '4px 8px', borderRadius: 4, fontSize: 12, fontWeight: 700 }}>
+                   Giảm {Math.round((1 - price / originalPrice) * 100)}%
+                 </span>
+              </div>
+            )}
+            <div style={{ fontSize: price === 0 ? 26 : 28, fontWeight: 800, color: '#111', lineHeight: 1 }}>
+              {price === 0 ? <span style={{ color: '#059669' }}>Miễn phí</span> : `${price.toLocaleString('vi-VN')} ₫`}
+            </div>
+            {price > 0 && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Truy cập trọn đời • Chứng chỉ hoàn thành</div>}
+          </div>
+        )}
+
+        {isEnrolled ? (
+          <button
+            onClick={() => navigate(`/learn/${courseId}`)}
+            style={{ width: '100%', padding: compact ? '10px 0' : '14px 0', background: '#0056D2', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+            Vào học ngay →
+          </button>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              onClick={addToCart}
+              disabled={addingCart}
+              style={{ width: '100%', padding: compact ? '10px 0' : '14px 0', background: addingCart ? '#93c5fd' : '#0056D2', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: addingCart ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>
+              {addingCart ? 'Đang thêm...' : price === 0 ? 'Đăng ký miễn phí' : 'Thêm vào giỏ hàng'}
+            </button>
+            {price > 0 && !compact && (
+              <button
+                onClick={async () => { await addToCart(); navigate('/checkout'); }}
+                style={{ width: '100%', padding: '12px 0', background: '#fff', color: '#0056D2', border: '2px solid #0056D2', borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+                Mua ngay
+              </button>
+            )}
+          </div>
+        )}
+
+        {!compact && (
+          <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { icon: '📚', text: `${totalLessons} bài học` },
+              { icon: '⏱', text: course.duration || '20+ giờ nội dung' },
+              { icon: '📱', text: 'Truy cập trên mọi thiết bị' },
+              { icon: '🏆', text: 'Chứng chỉ hoàn thành' },
+              { icon: '♾️', text: 'Truy cập trọn đời' },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#374151' }}>
+                <span>{item.icon}</span>
+                <span>{item.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!compact && price > 0 && (
+          <div style={{ marginTop: 16, padding: '10px 12px', background: '#f0fdf4', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#15803d' }}>
+            🔒 Đảm bảo hoàn tiền 30 ngày nếu không hài lòng
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ background: '#f5f7f9', minHeight: '100vh' }}>
+      {/* TOAST */}
+      {toast && (
+        <div style={{ position: 'fixed', top: 80, right: 24, background: '#1f2937', color: '#fff', padding: '12px 20px', borderRadius: 10, zIndex: 9999, fontSize: 14, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', animation: 'fadeIn 0.2s ease' }}>
+          {toast}
+          <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+        </div>
+      )}
+
+      {/* ── HERO SECTION ── */}
+      <div style={{ background: '#1c1d1f', color: '#fff', padding: '48px 0 0' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: '1fr 360px', gap: 40, alignItems: 'start' }}>
+          {/* LEFT CONTENT */}
+          <div style={{ paddingBottom: 40 }}>
+            {/* Breadcrumb */}
+            <nav style={{ marginBottom: 16, fontSize: 13, color: '#bbb' }}>
+              <Link to="/" style={{ color: '#60a5fa', textDecoration: 'none' }}>Trang chủ</Link>
+              <span style={{ margin: '0 8px', color: '#555' }}>/</span>
+              <span style={{ color: '#aaa' }}>{fixText(course.category?.name) || 'Khóa học'}</span>
+              <span style={{ margin: '0 8px', color: '#555' }}>/</span>
+              <span style={{ color: '#ddd' }}>{title.length > 40 ? title.slice(0, 40) + '…' : title}</span>
             </nav>
 
-            <h1 className="cd-title">{title}</h1>
-            <p className="cd-desc">{course.description?.split('\n')[0] || `Khóa học chuyên sâu từ ${org}`}</p>
+            {/* Partner badge */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: 6, marginBottom: 16, fontSize: 13, color: '#e5e7eb' }}>
+              <span style={{ width: 28, height: 28, background: GRADS[gradIdx], borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13 }}>
+                {org[0]?.toUpperCase()}
+              </span>
+              {org}
+            </div>
 
-            {/* RATING ROW */}
-            <div className="cd-rating-row">
+            {/* Title */}
+            <h1 style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.25, marginBottom: 16, color: '#fff', maxWidth: 680 }}>
+              {title}
+            </h1>
+
+            {/* Subtitle */}
+            <p style={{ fontSize: 16, color: '#d1d5db', lineHeight: 1.6, marginBottom: 20, maxWidth: 620 }}>
+              {course.description?.split('\n')[0] || `Khóa học chuyên sâu từ ${org} giúp bạn nâng cao kỹ năng ${fixText(course.category?.name) || 'chuyên môn'}.`}
+            </p>
+
+            {/* Rating row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
               {rating > 0 && (
                 <>
-                  <span className="cd-rating-num">{rating.toFixed(1)}</span>
-                  <Stars rating={rating} />
-                  {course.review_count && <span className="cd-review-count">({fixText(course.review_count)})</span>}
+                  <Stars rating={rating} size={16} />
+                  <span style={{ color: '#fbbf24', fontWeight: 700 }}>{rating.toFixed(1)}</span>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>({typeof reviewCount === 'number' ? reviewCount.toLocaleString() : reviewCount} đánh giá)</span>
                 </>
               )}
+              <span style={{ color: '#9ca3af', fontSize: 13 }}>•</span>
+              <span style={{ color: '#9ca3af', fontSize: 13 }}>{typeof enrollCount === 'number' ? enrollCount.toLocaleString() : enrollCount} học viên đã đăng ký</span>
             </div>
 
-            {/* META */}
-            <div className="cd-meta-row">
-              <span>👨‍🏫 {org}</span>
-              {course.level && <span>📊 {course.level}</span>}
-              {course.duration && <span>⏱ {course.duration}</span>}
-              <span>📚 {totalLessons} bài học</span>
+            {/* Meta badges */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { icon: '📊', label: course.level || 'Mọi trình độ' },
+                { icon: '⏱', label: course.duration || '20+ giờ' },
+                { icon: '🌐', label: 'Tiếng Việt' },
+                { icon: '🏆', label: 'Có chứng chỉ' },
+              ].map((b, i) => (
+                <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.1)', padding: '5px 12px', borderRadius: 20, fontSize: 12, color: '#e5e7eb' }}>
+                  {b.icon} {b.label}
+                </span>
+              ))}
             </div>
           </div>
 
-          {/* STICKY CARD */}
-          <div className="cd-sticky-card">
-            {/* Thumbnail: real image if available, else gradient letter */}
-            <div className="cd-card-thumb" style={{ height: 160, overflow: 'hidden', borderRadius: '8px 8px 0 0', background: GRADS[gradIdx], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {thumbnailUrl ? (
-                <img src={thumbnailUrl} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
-              ) : null}
-              <span style={{ fontSize: 64, color: 'rgba(255,255,255,0.85)', display: thumbnailUrl ? 'none' : 'flex' }}>
-                {org[0]?.toUpperCase() || 'E'}
-              </span>
-            </div>
-            <div className="cd-card-body">
-              <div className="cd-card-price">
-                {price === 0
-                  ? <span className="cd-price-free">Miễn phí</span>
-                  : <span className="cd-price-paid">{price.toLocaleString('vi-VN')} đ</span>}
-              </div>
-
-              {isEnrolled ? (
-                <button className="cd-enroll-btn" onClick={() => navigate(`/learn/${courseId}`)}>
-                  Vào học ngay →
-                </button>
-              ) : (
-                <>
-                  <button className="cd-enroll-btn" onClick={addToCart} disabled={addingCart}>
-                    {addingCart ? 'Đang thêm...' : 'Thêm vào giỏ hàng'}
-                  </button>
-                  <button className="cd-buy-btn" onClick={async () => { await addToCart(); navigate('/checkout'); }}>
-                    Mua ngay
-                  </button>
-                </>
-              )}
-
-              <div className="cd-card-includes">
-                <p className="cd-includes-title">Khóa học bao gồm:</p>
-                <ul>
-                  <li>📚 {totalLessons} bài học</li>
-                  {course.duration && <li>⏱ {course.duration} học tập</li>}
-                  <li>📱 Truy cập trên mọi thiết bị</li>
-                  <li>🏆 Chứng chỉ hoàn thành</li>
-                  <li>♾️ Truy cập trọn đời</li>
-                </ul>
-              </div>
-            </div>
+          {/* RIGHT: Enrollment Card (visible in hero) */}
+          <div style={{ position: 'sticky', top: 80, zIndex: 10 }}>
+            <EnrollCard />
           </div>
         </div>
       </div>
 
-      {/* TABS */}
-      <div className="cd-tabs-bar">
-        <div className="cd-tabs-inner">
-          {['overview', 'curriculum', 'instructor', 'reviews'].map(tab => (
+      {/* ── STICKY SUB-NAV ── */}
+      <div ref={stickyNavRef} style={{
+        position: 'sticky', top: 56, zIndex: 100,
+        background: '#fff',
+        borderBottom: '1px solid #e5e7eb',
+        boxShadow: stickyVisible ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+        transition: 'box-shadow 0.2s',
+      }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <nav style={{ display: 'flex', gap: 0 }}>
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item.id}
+                onClick={() => scrollToSection(item.id)}
+                style={{
+                  padding: '16px 20px',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: activeNav === item.id ? '3px solid #0056D2' : '3px solid transparent',
+                  color: activeNav === item.id ? '#0056D2' : '#374151',
+                  fontWeight: activeNav === item.id ? 700 : 500,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Compact enroll CTA (shows on scroll) */}
+          {stickyVisible && !isEnrolled && (
             <button
-              key={tab}
-              className={`cd-tab ${activeTab === tab ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab)}
-            >
-              {tab === 'overview' ? 'Tổng quan'
-               : tab === 'curriculum' ? 'Nội dung khóa học'
-               : tab === 'instructor' ? 'Giảng viên'
-               : 'Đánh giá'}
+              onClick={addToCart}
+              style={{ padding: '9px 20px', background: '#0056D2', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              {price === 0 ? 'Đăng ký miễn phí' : 'Thêm vào giỏ hàng'}
             </button>
-          ))}
+          )}
+          {stickyVisible && isEnrolled && (
+            <button
+              onClick={() => navigate(`/learn/${courseId}`)}
+              style={{ padding: '9px 20px', background: '#0056D2', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              Vào học ngay →
+            </button>
+          )}
         </div>
       </div>
 
-      {/* CONTENT */}
-      <div className="cd-content">
-        <div className="cd-content-main">
+      {/* ── QUICK STATS BAR ── */}
+      <div style={{ background: '#fff', borderBottom: '1px solid #f3f4f6' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', borderTop: '1px solid #f3f4f6' }}>
+            {[
+              { icon: '📚', value: `${totalLessons}`, label: 'Bài học' },
+              { icon: '⭐', value: rating.toFixed(1), label: 'Đánh giá trung bình' },
+              { icon: '📊', value: course.level || 'Mọi cấp độ', label: 'Trình độ' },
+              { icon: '⏱', value: course.duration || 'Linh hoạt', label: 'Thời lượng' },
+              { icon: '🌐', value: 'Tiếng Việt', label: 'Ngôn ngữ' },
+            ].map((stat, i) => (
+              <div key={i} style={{ padding: '20px 0', textAlign: 'center', borderRight: i < 4 ? '1px solid #f3f4f6' : 'none' }}>
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{stat.icon}</div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: '#111' }}>{stat.value}</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-          {/* OVERVIEW TAB */}
-          {activeTab === 'overview' && (
-            <div className="cd-section">
-              <h2>Bạn sẽ học được gì</h2>
-              {skills.length > 0 ? (
-                <div className="cd-skills-grid">
-                  {skills.map((s, i) => (
-                    <div key={i} className="cd-skill-item">
-                      <span className="cd-check">✓</span>
-                      <span>{s}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="cd-skills-grid">
-                  {['Kiến thức nền tảng vững chắc', 'Kỹ năng thực hành thực tế', 'Tư duy giải quyết vấn đề', 'Chuẩn bị cho sự nghiệp'].map((s, i) => (
-                    <div key={i} className="cd-skill-item"><span className="cd-check">✓</span><span>{s}</span></div>
-                  ))}
-                </div>
-              )}
+      {/* ── MAIN 2-COLUMN CONTENT ── */}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px', display: 'grid', gridTemplateColumns: '1fr 360px', gap: 32, alignItems: 'start' }}>
 
-              <h2 style={{ marginTop: 32 }}>Yêu cầu</h2>
-              <ul className="cd-req-list">
-                <li>Không cần kinh nghiệm trước — phù hợp cho người mới bắt đầu</li>
-                <li>Máy tính có kết nối internet</li>
-                <li>Tinh thần học hỏi và kiên trì</li>
-              </ul>
+        {/* ── LEFT: MAIN CONTENT ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-              <h2 style={{ marginTop: 32 }}>Mô tả khóa học</h2>
-              <p className="cd-desc-text">
-                {course.description || `Khóa học ${title} được thiết kế bởi ${org}, cung cấp kiến thức toàn diện và kỹ năng thực tiễn. Phù hợp cho cả người mới bắt đầu và những ai muốn nâng cao kỹ năng chuyên môn.`}
-              </p>
-            </div>
-          )}
-
-          {/* CURRICULUM TAB */}
-          {activeTab === 'curriculum' && (
-            <div className="cd-section">
-              <h2>Nội dung khóa học</h2>
-              <p className="cd-curriculum-summary">{curriculum.length} phần • {totalLessons} bài học</p>
-              <div className="cd-curriculum">
-                {curriculum.map((section, si) => (
-                  <div key={si} className="cd-section-item">
-                    <button
-                      className="cd-section-header"
-                      onClick={() => setExpandedSection(expandedSection === si ? -1 : si)}
-                    >
-                      <span className="cd-section-chevron">{expandedSection === si ? '▼' : '▶'}</span>
-                      <span className="cd-section-title">{section.title}</span>
-                      <span className="cd-section-count">{section.lessons.length} bài</span>
-                    </button>
-                    {expandedSection === si && (
-                      <ul className="cd-lesson-list">
-                        {section.lessons.map((lesson, li) => (
-                          <li key={li} className="cd-lesson-item">
-                            <span className="cd-lesson-icon">▶</span>
-                            <span className="cd-lesson-name">{lesson}</span>
-                            {isEnrolled && (
-                              <button className="cd-lesson-start" onClick={() => navigate(`/learn/${courseId}`)}>
-                                Học ngay
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+          {/* SECTION: ABOUT */}
+          <section ref={el => sectionsRef.current.about = el}>
+            {/* What you'll learn */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 28 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 20, color: '#111' }}>Bạn sẽ học được gì</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px' }}>
+                {whatYouLearn.slice(0, 8).map((skill, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, color: '#374151', lineHeight: 1.5 }}>
+                    <span style={{ color: '#0056D2', fontWeight: 700, fontSize: 16, marginTop: 1, flexShrink: 0 }}>✓</span>
+                    <span>{skill}</span>
                   </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION: SKILLS TAGS */}
+          {skills.length > 0 && (
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 24 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: '#111' }}>Kỹ năng bạn sẽ đạt được</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {skills.map((s, i) => (
+                  <span key={i} style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '5px 14px', borderRadius: 20, fontSize: 13, fontWeight: 500 }}>
+                    {s}
+                  </span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* INSTRUCTOR TAB */}
-          {activeTab === 'instructor' && (
-            <div className="cd-section">
-              <h2>Giảng viên</h2>
-              <div className="cd-instructor-card">
-                <div className="cd-instructor-avatar">{org[0]?.toUpperCase()}</div>
-                <div className="cd-instructor-info">
-                  <h3>{org}</h3>
-                  <p className="cd-instructor-title">{fixText(course.category?.name) || 'Chuyên gia'} Expert</p>
-                  <div className="cd-instructor-stats">
-                    {rating > 0 && <span>⭐ {rating.toFixed(1)} đánh giá</span>}
-                    <span>📚 {totalLessons} bài học</span>
-                    <span>🎓 Giảng viên chuyên nghiệp</span>
+          {/* SECTION: OUTCOMES */}
+          <section ref={el => sectionsRef.current.outcomes = el}>
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 28 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 20, color: '#111' }}>Kết quả học tập</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {[
+                  { icon: '🏆', title: 'Nhận chứng chỉ', desc: 'Chứng chỉ được công nhận bởi doanh nghiệp, chia sẻ lên LinkedIn' },
+                  { icon: '💼', title: 'Sẵn sàng việc làm', desc: 'Kỹ năng thực tiễn áp dụng ngay vào công việc thực tế' },
+                  { icon: '📈', title: 'Nâng cao sự nghiệp', desc: 'Mở ra cơ hội thăng tiến và tăng lương trong lĩnh vực này' },
+                  { icon: '🌐', title: 'Cộng đồng học tập', desc: 'Kết nối với hàng nghìn học viên và chuyên gia trên toàn quốc' },
+                ].map((item, i) => (
+                  <div key={i} style={{ padding: 16, background: '#f9fafb', borderRadius: 10, border: '1px solid #f3f4f6' }}>
+                    <div style={{ fontSize: 24, marginBottom: 10 }}>{item.icon}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 6 }}>{item.title}</div>
+                    <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>{item.desc}</div>
                   </div>
-                  <p className="cd-instructor-bio">
-                    {org} là chuyên gia hàng đầu trong lĩnh vực {fixText(course.category?.name) || 'công nghệ'} với nhiều năm kinh nghiệm thực tiễn. Đã đào tạo hàng nghìn học viên trên toàn thế giới.
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
-          )}
+          </section>
 
-          {/* REVIEWS TAB */}
-          {activeTab === 'reviews' && (
-            <div className="cd-section">
-              <h2>Đánh giá học viên</h2>
-              {rating > 0 && (
-                <div className="cd-rating-overview">
-                  <div className="cd-rating-big">
-                    <span className="cd-rating-big-num">{rating.toFixed(1)}</span>
-                    <Stars rating={rating} />
-                    <span className="cd-rating-label">Đánh giá khóa học</span>
-                  </div>
-                  <div className="cd-rating-bars">
-                    {[5,4,3,2,1].map(star => (
-                      <div key={star} className="cd-rating-bar-row">
-                        <div className="cd-rating-bar-fill" style={{ width: `${star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 7 : 2}%` }} />
-                        <span>{star} ★</span>
+          {/* SECTION: CURRICULUM */}
+          <section ref={el => sectionsRef.current.courses = el}>
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ padding: '24px 28px', borderBottom: '1px solid #f3f4f6' }}>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111', marginBottom: 6 }}>
+                  Nội dung khóa học
+                </h2>
+                <p style={{ fontSize: 13, color: '#6b7280' }}>
+                  {curriculum.length} phần • {totalLessons} bài học • {course.duration || '20+'} giờ học tập
+                </p>
+              </div>
+              {curriculum.map((mod, mi) => (
+                <div key={mi} style={{ borderBottom: mi < curriculum.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+                  <button
+                    onClick={() => setExpandedModule(expandedModule === mi ? -1 : mi)}
+                    style={{ width: '100%', padding: '18px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: expandedModule === mi ? '#f9fafb' : '#fff', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 8, background: GRADS[gradIdx], display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
+                        {mi + 1}
                       </div>
-                    ))}
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>{mod.title}</div>
+                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                          {mod.lessons.length} bài • {mod.duration}
+                        </div>
+                      </div>
+                    </div>
+                    <span style={{ color: '#6b7280', fontSize: 18, transition: 'transform 0.2s', transform: expandedModule === mi ? 'rotate(180deg)' : 'none' }}>›</span>
+                  </button>
+                  {expandedModule === mi && (
+                    <ul style={{ listStyle: 'none', margin: 0, padding: '0 28px 16px 82px' }}>
+                      {mod.lessons.map((lesson, li) => (
+                        <li key={li} style={{ padding: '10px 0', borderTop: '1px solid #f9fafb', display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ color: '#9ca3af', fontSize: 14 }}>▶</span>
+                          <span style={{ fontSize: 14, color: '#374151', flex: 1 }}>{lesson}</span>
+                          {isEnrolled && (
+                            <button onClick={() => navigate(`/learn/${courseId}`)} style={{ fontSize: 12, color: '#0056D2', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                              Học ngay →
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* SECTION: DESCRIPTION */}
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 28 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 16, color: '#111' }}>Về khóa học này</h2>
+            <div style={{ fontSize: 15, color: '#374151', lineHeight: 1.75, ...(showFullDesc ? {} : { maxHeight: 120, overflow: 'hidden', position: 'relative' }) }}>
+              {course.description ||
+                `Khóa học ${title} được thiết kế bởi ${org}, cung cấp kiến thức toàn diện và kỹ năng thực tiễn. Phù hợp cho cả người mới bắt đầu và những ai muốn nâng cao kỹ năng chuyên môn trong lĩnh vực ${fixText(course.category?.name) || 'công nghệ'}. Với phương pháp học kết hợp lý thuyết và thực hành, khóa học này sẽ giúp bạn đạt được sự tự tin trong công việc.`}
+            </div>
+            {!showFullDesc && (
+              <button onClick={() => setShowFullDesc(true)} style={{ marginTop: 12, color: '#0056D2', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>
+                Xem thêm ▾
+              </button>
+            )}
+          </div>
+
+          {/* SECTION: INSTRUCTOR */}
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 28 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 20, color: '#111' }}>Giảng viên</h2>
+            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: GRADS[gradIdx], display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 24, flexShrink: 0 }}>
+                {org[0]?.toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#0056D2', marginBottom: 4 }}>{org}</div>
+                <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 10 }}>
+                  {fixText(course.category?.name) || 'Chuyên gia'} Expert • EduVNU Partner
+                </div>
+                <div style={{ display: 'flex', gap: 16, fontSize: 13, color: '#374151', marginBottom: 10 }}>
+                  {rating > 0 && <span>⭐ {rating.toFixed(1)} đánh giá</span>}
+                  <span>👥 {typeof enrollCount === 'number' ? enrollCount.toLocaleString() : enrollCount} học viên</span>
+                  <span>📚 {totalLessons} bài học</span>
+                </div>
+                <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>
+                  {org} là chuyên gia hàng đầu trong lĩnh vực {fixText(course.category?.name) || 'công nghệ'} với nhiều năm kinh nghiệm thực tiễn và đã đào tạo hàng nghìn học viên trên toàn quốc.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION: REVIEWS */}
+          <section ref={el => sectionsRef.current.testimonials = el}>
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 28 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 20, color: '#111' }}>Đánh giá từ học viên</h2>
+
+              {/* Rating overview */}
+              {rating > 0 && (
+                <div style={{ display: 'flex', gap: 32, alignItems: 'center', padding: '20px 24px', background: '#f9fafb', borderRadius: 10, marginBottom: 24 }}>
+                  <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                    <div style={{ fontSize: 56, fontWeight: 800, color: '#111', lineHeight: 1 }}>{rating.toFixed(1)}</div>
+                    <Stars rating={rating} size={18} />
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Đánh giá khóa học</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    {[5, 4, 3, 2, 1].map(star => {
+                      const pct = star === 5 ? 72 : star === 4 ? 19 : star === 3 ? 6 : star === 2 ? 2 : 1;
+                      return (
+                        <div key={star} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
+                          <div style={{ flex: 1, height: 8, background: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: '#f59e0b', borderRadius: 4 }} />
+                          </div>
+                          <span style={{ fontSize: 12, color: '#6b7280', width: 32, textAlign: 'right' }}>{star} ★</span>
+                          <span style={{ fontSize: 12, color: '#9ca3af', width: 28 }}>{pct}%</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
-              {/* Real reviews from API */}
-              <div className="cd-reviews-list">
+
+              {/* Review cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {reviewsLoading ? (
-                  <div style={{color:'var(--muted)',padding:'20px 0'}}>Đang tải đánh giá...</div>
-                ) : reviews.length > 0 ? (
-                  reviews.map((review, i) => (
-                    <div key={i} className="cd-review-item">
-                      <div className="cd-review-header">
-                        <div className="cd-reviewer-avatar">
-                          {(review.user?.first_name || review.user?.username || 'U')[0].toUpperCase()}
+                  <div style={{ textAlign: 'center', color: '#6b7280', padding: '24px 0' }}>Đang tải đánh giá...</div>
+                ) : (reviews.length > 0 ? reviews : DEMO_REVIEWS).map((review, i) => {
+                  const name = reviews.length > 0
+                    ? (review.user?.first_name ? `${review.user.first_name} ${review.user.last_name || ''}`.trim() : review.user?.username || 'Học viên')
+                    : review.name;
+                  const role = review.role || '';
+                  const text = review.comment || review.text || '';
+                  const r = review.rating || 5;
+                  const initials = (name[0] || 'H').toUpperCase();
+                  return (
+                    <div key={i} style={{ padding: 20, border: '1px solid #f3f4f6', borderRadius: 10, background: '#fff' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 12 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: '50%', background: GRADS[(i + gradIdx) % GRADS.length], display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 16, flexShrink: 0 }}>
+                          {initials}
                         </div>
                         <div>
-                          <p className="cd-reviewer-name">
-                            {review.user?.first_name ? `${review.user.first_name} ${review.user.last_name || ''}`.trim() : review.user?.username || 'Học viên'}
-                          </p>
-                          <Stars rating={review.rating || 5} />
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>{name}</div>
+                          {role && <div style={{ fontSize: 12, color: '#6b7280' }}>{role}</div>}
+                          <div style={{ marginTop: 4 }}><Stars rating={r} size={13} /></div>
                         </div>
                       </div>
-                      <p className="cd-review-text">{review.comment || review.text || ''}</p>
+                      <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.65, margin: 0 }}>{text}</p>
                     </div>
-                  ))
-                ) : (
-                  // Fallback demo reviews khi API chưa có data
-                  [
-                    { name: 'Nguyễn Văn A', rating: 5, text: 'Khóa học rất hay, giảng viên giải thích rõ ràng và dễ hiểu. Tôi đã học được rất nhiều kiến thức bổ ích.' },
-                    { name: 'Trần Thị B', rating: 4, text: 'Nội dung phong phú, thực hành nhiều. Rất phù hợp cho người mới bắt đầu.' },
-                    { name: 'Lê Văn C', rating: 5, text: 'Tuyệt vời! Đây là một trong những khóa học tốt nhất tôi từng tham gia.' },
-                  ].map((review, i) => (
-                    <div key={i} className="cd-review-item">
-                      <div className="cd-review-header">
-                        <div className="cd-reviewer-avatar">{review.name[0]}</div>
-                        <div>
-                          <p className="cd-reviewer-name">{review.name}</p>
-                          <Stars rating={review.rating} />
-                        </div>
-                      </div>
-                      <p className="cd-review-text">{review.text}</p>
-                    </div>
-                  ))
-                )}
+                  );
+                })}
               </div>
             </div>
-          )}
+          </section>
+
+          {/* SECTION: FAQ */}
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 28 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 20, color: '#111' }}>Câu hỏi thường gặp</h2>
+            {[
+              { q: 'Tôi có cần kinh nghiệm trước không?', a: 'Không, khóa học được thiết kế phù hợp cho người mới bắt đầu. Bạn chỉ cần máy tính và kết nối internet.' },
+              { q: 'Mất bao lâu để hoàn thành khóa học?', a: `Với lịch học linh hoạt, bạn có thể hoàn thành trong ${course.duration || '4-6 tuần'} nếu học khoảng 5 giờ mỗi tuần.` },
+              { q: 'Chứng chỉ của tôi có được công nhận không?', a: 'Chứng chỉ EduVNU được nhiều doanh nghiệp trong nước công nhận và bạn có thể chia sẻ trực tiếp lên LinkedIn.' },
+              { q: 'Tôi có thể truy cập khóa học mãi không?', a: 'Sau khi mua, bạn có quyền truy cập vĩnh viễn vào toàn bộ nội dung khóa học, kể cả các cập nhật trong tương lai.' },
+            ].map((faq, i) => (
+              <div key={i} style={{ borderTop: '1px solid #f3f4f6', paddingTop: 16, marginBottom: 16 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 8 }}>❓ {faq.q}</div>
+                <div style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>{faq.a}</div>
+              </div>
+            ))}
+          </div>
+
+        </div>
+
+        {/* ── RIGHT SIDEBAR (desktop sticky) ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 120 }}>
+          <EnrollCard />
+
+          {/* Share card */}
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 12 }}>Chia sẻ khóa học</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {[
+                { label: 'Facebook', bg: '#1877f2', icon: 'f' },
+                { label: 'LinkedIn', bg: '#0a66c2', icon: 'in' },
+                { label: 'Copy link', bg: '#6b7280', icon: '🔗' },
+              ].map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => {if (s.label === 'Copy link') { navigator.clipboard.writeText(window.location.href); showToast('✅ Đã sao chép link!'); }}}
+                  style={{ flex: 1, padding: '8px 0', background: s.bg, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  {s.icon}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Related courses placeholder */}
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 12 }}>Được cung cấp bởi</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 48, height: 48, background: GRADS[gradIdx], borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 18 }}>
+                {org[0]?.toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>{org}</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>EduVNU Partner</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* ── BOTTOM PROMO STRIP ── */}
+      <div style={{ background: '#1c1d1f', marginTop: 48, padding: '48px 24px' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+          {[
+            { icon: '🎓', title: 'Chứng chỉ nghề nghiệp', desc: 'Nhận chứng chỉ được doanh nghiệp công nhận', color: '#0056D2', action: 'Tìm hiểu thêm' },
+            { icon: '🏛️', title: 'Học tại EduVNU', desc: 'Tham gia cộng đồng 150,000+ học viên', color: '#7c3aed', action: 'Khám phá ngay' },
+            { icon: '🏢', title: 'EduVNU cho doanh nghiệp', desc: 'Nâng cao kỹ năng cho toàn bộ đội nhóm', color: '#059669', action: 'Liên hệ ngay' },
+          ].map((promo, i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 24 }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>{promo.icon}</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: '#fff', marginBottom: 8 }}>{promo.title}</div>
+              <div style={{ fontSize: 13, color: '#9ca3af', lineHeight: 1.5, marginBottom: 16 }}>{promo.desc}</div>
+              <Link to="/" style={{ fontSize: 13, color: promo.color, fontWeight: 700, textDecoration: 'none' }}>{promo.action} →</Link>
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }
