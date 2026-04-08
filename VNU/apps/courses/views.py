@@ -9,9 +9,18 @@ from .serializers import (
 )
 
 
+from django.db.models import Count
+
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.filter(is_active=True)
     serializer_class = CategorySerializer
+
+    def list(self, request, *args, **kwargs):
+        # Lọc thủ công bằng Python để tránh lỗi tương thích SQL Server khi dùng JOIN/Count
+        queryset = self.filter_queryset(self.get_queryset())
+        valid_cats = [cat for cat in queryset if cat.courses.filter(is_active=True).exists()]
+        serializer = self.get_serializer(valid_cats, many=True)
+        return Response(serializer.data)
 
 
 class CourseViewSet(viewsets.ReadOnlyModelViewSet):

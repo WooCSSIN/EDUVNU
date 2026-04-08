@@ -62,3 +62,8 @@ VNU/
 - Không dùng Tailwind, Bootstrap, hay UI library trừ khi được yêu cầu
 - Không chia nhỏ component khi chưa được yêu cầu refactor
 - Không tự động tạo mock data nếu đã có API thật
+
+# Technical Gotchas & Lưu ý (Đã cập nhật mới nhất)
+- **Cơ sở dữ liệu MS SQL Server**: Hệ quản trị này cực kỳ nhạy cảm với các hàm đếm hoặc `.distinct()` đi kèm JOIN trong Django ORM (thường sẽ gây lỗi 500 sập ngầm API). Khắc phục: Lọc thủ công bằng Python (ví dụ List Comprehension trong hàm `list()`) thay cho các câu lệnh `filter` quá phức tạp của ORM.
+- **Giao diện Spline 3D**: Nếu dùng Iframe từ Spline làm ảnh nền (Background), để giấu đi logo / watermark "Built with Spline", hãy cấp thẻ div chứa nó thuộc tính `overflow: hidden`, còn thẻ `<iframe />` thì cấp `height: calc(100% + 80px)` để giấu logo lún khỏi tầm nhìn.
+- **Mẹo thu phóng hình ảnh viền rộng (Logo)**: Trong trường hợp ảnh gốc (như PNG) bị quá nhiều khoảng trắng (vùng transparent) khiến logo khi nhét vào khung sẽ bị nhỏ nhí, nên dùng thuộc tính CSS `transform: scale(2.0, 3.0,...)` để phóng to phần lõi ảnh mà không làm vỡ hoặc đẩy cấu trúc Layout gốc.

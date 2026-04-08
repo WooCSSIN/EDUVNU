@@ -51,10 +51,14 @@ function MegaMenu({ onClose }) {
             <h4 className="mega-col-title">{col.title}</h4>
             <ul>
               {col.items.map(item => (
-                <li key={item}><a href="#" className="mega-item" onClick={onClose}>{item}</a></li>
+                <li key={item}>
+                  <Link to={`/?q=${encodeURIComponent(item)}`} className="mega-item" onClick={onClose}>
+                    {item}
+                  </Link>
+                </li>
               ))}
             </ul>
-            <a href="#" className="mega-see-all" onClick={onClose}>Xem tất cả</a>
+            <Link to="/" className="mega-see-all" onClick={onClose}>Xem tất cả</Link>
           </div>
         ))}
       </div>
@@ -96,7 +100,9 @@ function Header() {
       <div className="crs-header-inner">
         {/* LEFT */}
         <div className="crs-nav-left">
-          <Link to="/" className="crs-logo">EduVNU</Link>
+          <Link to="/" className="crs-logo" style={{display: 'flex', alignItems: 'center', marginLeft: '30px', marginRight: '30px'}}>
+            <img src="/course_images/eduvn.png" alt="EduVNU Logo" style={{height: '90px', objectFit: 'contain', transform: 'scale(2.8)'}} />
+          </Link>
 
           {/* KHÁM PHÁ BUTTON */}
           <div className="mega-trigger" ref={megaRef} onMouseEnter={() => setShowMega(true)}>
@@ -218,7 +224,9 @@ function AppLayout() {
       <footer className="crs-footer">
         <div className="crs-footer-inner">
           <div className="crs-footer-brand">
-            <span className="crs-logo white">EduVNU</span>
+            <span className="crs-logo white" style={{display: 'inline-flex', alignItems: 'center', marginLeft: '50px', marginBottom: '20px'}}>
+              <img src="/course_images/eduvn.png" alt="EduVNU Logo" style={{height: '120px', objectFit: 'contain', transform: 'scale(3.6)'}} />
+            </span>
             <p>Nền tảng học trực tuyến hàng đầu Việt Nam</p>
             <div className="crs-footer-socials">
               <span className="social-icon facebook">f</span>

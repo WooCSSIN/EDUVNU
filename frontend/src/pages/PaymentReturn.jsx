@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { Loading } from '../components/LoadingUI';
@@ -16,6 +16,14 @@ export default function PaymentReturn() {
     const processPayment = async () => {
       const params = new URLSearchParams(location.search);
       
+      // 0. Nếu là giao dịch dùng thử miễn phí 7 ngày
+      if (params.get('trial') === 'true') {
+        setStatus('success');
+        setMessage('🎉 Chúc mừng! Bạn đã kích hoạt thành công gói dùng thử miễn phí 7 ngày. Hãy bắt đầu học ngay!');
+        setOrderId(params.get('order_id'));
+        return;
+      }
+
       // 1. Kiểm tra nếu là thanh toán trực tiếp thành công (Stripe card, SePay...)
       if (params.get('mock') || params.get('method') === 'card' || params.get('method') === 'chuyen_khoan') {
         setStatus('success');

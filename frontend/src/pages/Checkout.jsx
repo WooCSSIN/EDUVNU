@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardNumberElement, CardExpiryElement, CardCvcElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import api from '../api/axios';
@@ -109,6 +109,11 @@ export default function Checkout() {
   usePageSEO({ title: 'Thanh toán an toàn - EduVNU', description: 'Hoàn tất đơn hàng của bạn để bắt đầu học ngay.' });
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const isTrial = searchParams.get('trial') === 'true';
+  const trialProgram = location.state?.program; // We can still try to get the title from state
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [method, setMethod] = useState('vnpay');
@@ -119,6 +124,16 @@ export default function Checkout() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate('/login'); return; }
+    
+    if (isTrial) {
+      setItems([{
+        id: 'trial_123',
+        course: { title: `${trialProgram?.title || 'Chương trình'} - Dùng thử miễn phí 7 ngày`, price: 0 }
+      }]);
+      setLoading(false);
+      return;
+    }
+
     api.get('/cart/my_cart/')
       .then(r => {
         const cartItems = r.data.items || [];
@@ -135,6 +150,15 @@ export default function Checkout() {
     if (!items.length) return;
     setProcessing(true);
     setError('');
+    
+    if (isTrial) {
+       // Mock payment success for free trial checkout without hitting backend cart logic
+       setTimeout(() => {
+         navigate(`/payment-return?method=${method}&order_id=TRIAL_${Date.now()}&trial=true`);
+       }, 1500);
+       return;
+    }
+
     if (method === 'card') {
       if (stripeFormRef.current) {
         const ok = await stripeFormRef.current.submit();
@@ -187,10 +211,10 @@ export default function Checkout() {
               </h3>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {METHODS.map((m, index) => {
+              {(isTrial ? METHODS.filter(m => m.id === 'vnpay' || m.id === 'card') : METHODS).map((m, index, arr) => {
                 const isActive = method === m.id;
                 return (
-                  <div key={m.id} style={{ borderBottom: index < METHODS.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
+                  <div key={m.id} style={{ borderBottom: index < arr.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
                     <label
                       onClick={() => setMethod(m.id)}
                       style={{

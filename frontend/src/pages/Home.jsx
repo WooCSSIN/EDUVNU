@@ -71,8 +71,21 @@ export default function Home() {
   return (
     <main className="home-wrapper">
       {/* COURSERA STYLE HERO */}
-      <section className="hero-section" style={{background: '#00255b', color: 'white', padding: '100px 64px'}}>
-        <div className="hero-text" style={{maxWidth: '700px'}}>
+      <section className="hero-section" style={{position: 'relative', overflow: 'hidden', color: 'white', padding: '120px 64px', minHeight: '550px', display: 'flex', alignItems: 'center'}}>
+        {/* Lớp iframe nền full section (có cắt phần dưới để giấu logo Spline) */}
+        <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, overflow: 'hidden'}}>
+          <iframe 
+            src="https://my.spline.design/earth-ioVfVKnUbg0yrx8WVxPZmIrd/" 
+            frameBorder="0" 
+            title="Trái đất 3D"
+            style={{width: '100%', height: 'calc(100% + 80px)', border: 'none', display: 'block'}}
+          ></iframe>
+        </div>
+        
+        {/* Lớp phủ mờ gradient (cho phép chuột đâm xuyên qua với pointerEvents: 'none' để tương tác 3D) */}
+        <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(to right, rgba(0,37,91,0.95) 0%, rgba(0,37,91,0.5) 50%, rgba(0,37,91,0.1) 100%)', pointerEvents: 'none', zIndex: 1}}></div>
+
+        <div className="hero-text" style={{maxWidth: '700px', position: 'relative', zIndex: 2}}>
           <h1 style={{fontSize: '56px', fontWeight: '700', lineHeight: '1.1', marginBottom: '24px'}}>
             Học tập và thăng tiến <br/> sự nghiệp của bạn
           </h1>
@@ -80,37 +93,43 @@ export default function Home() {
             Học các chứng chỉ trực tuyến từ các trường đại học và công ty hàng đầu thế giới như Google, IBM, Meta.
           </p>
           <div className="hero-buttons" style={{display: 'flex', gap: '16px'}}>
-            <button className="btn-join" style={{padding: '16px 32px', fontSize: '18px'}} onClick={()=>navigate('/login')}>Tham gia miễn phí</button>
-            <button className="btn-login" style={{color: 'white', borderColor: 'rgba(255,255,255,0.3)', padding: '16px 32px'}} onClick={()=>navigate('/degrees')}>Dành cho doanh nghiệp</button>
+            <button className="btn-join" style={{padding: '16px 32px', fontSize: '18px', fontWeight: 'bold'}} onClick={()=>navigate('/login')}>Tham gia miễn phí</button>
+            <button className="btn-login" style={{color: 'black', background: 'rgba(255,255,255,0.9)', borderColor: 'transparent', padding: '16px 32px', fontSize: '18px', fontWeight: 'bold'}} onClick={()=>navigate('/degrees')}>Dành cho doanh nghiệp</button>
           </div>
         </div>
       </section>
 
       <section className="container" style={{maxWidth: '1200px', margin: '0 auto', padding: '48px 20px'}}>
-        <nav className="filter-row" aria-label="Lọc khóa học" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px'}}>
-           <div className="tabs" style={{display: 'flex', gap: '24px'}} role="tablist">
+        <nav className="filter-row" aria-label="Lọc khóa học" style={{display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px'}}>
+           <div className="tabs" style={{display: 'flex', gap: '24px', overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: '4px', flex: '1 1 0%', minWidth: 0}} role="tablist">
              <button className={activeCategory === '' ? 'tab active' : 'tab'} 
-                     style={{border: 'none', background: 'none', cursor: 'pointer', fontWeight: '600', paddingBottom: '8px', borderBottom: activeCategory === '' ? '2px solid #0056d2' : 'none'}}
+                     style={{border: 'none', background: 'none', cursor: 'pointer', fontWeight: '600', paddingBottom: '8px', borderBottom: activeCategory === '' ? '2px solid #0056d2' : 'none', flexShrink: 0}}
                      onClick={() => setActiveCategory('')}>
                 Tất cả các chủ đề
              </button>
-             {categories.slice(0, 4).map(cat => (
+             {categories.map(cat => (
                <button key={cat.id} 
                        className={activeCategory === String(cat.id) ? 'tab active' : 'tab'}
-                       style={{border: 'none', background: 'none', cursor: 'pointer', fontWeight: '600', paddingBottom: '8px', borderBottom: activeCategory === String(cat.id) ? '2px solid #0056d2' : 'none'}}
+                       style={{border: 'none', background: 'none', cursor: 'pointer', fontWeight: '600', paddingBottom: '8px', borderBottom: activeCategory === String(cat.id) ? '2px solid #0056d2' : 'none', flexShrink: 0}}
                        onClick={() => setActiveCategory(String(cat.id))}>
                   {fixText(cat.name)}
                </button>
              ))}
            </div>
            
-           
            <div style={{display: 'flex', gap: '16px'}}>
              <div className="search-box" style={{position: 'relative', width: '250px'}}>
                <input type="text" placeholder="Bạn muốn học gì?" 
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      style={{width: '100%', padding: '10px 16px', borderRadius: '4px', border: '1px solid #ccc'}} />
+                      style={{width: '100%', padding: '10px 30px 10px 16px', borderRadius: '4px', border: '1px solid #ccc'}} />
+               {searchQuery && (
+                 <button onClick={() => { setSearchQuery(''); navigate('/'); }} 
+                         style={{position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#888', padding: '0 4px'}}
+                         aria-label="Xóa tìm kiếm">
+                   &times;
+                 </button>
+               )}
              </div>
              
              <div className="sort-box" style={{position: 'relative', width: '200px'}}>

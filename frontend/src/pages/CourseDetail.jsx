@@ -46,6 +46,7 @@ export default function CourseDetail() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [stickyVisible, setStickyVisible] = useState(false);
+  const [showTrialModal, setShowTrialModal] = useState(false);
 
   /* SEO — must be before any early return */
   usePageSEO({
@@ -222,7 +223,7 @@ export default function CourseDetail() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
-              onClick={addToCart}
+              onClick={price === 0 ? () => setShowTrialModal(true) : addToCart}
               disabled={addingCart}
               style={{ width: '100%', padding: compact ? '10px 0' : '14px 0', background: addingCart ? '#93c5fd' : '#0056D2', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: addingCart ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>
               {addingCart ? 'Đang thêm...' : price === 0 ? 'Đăng ký miễn phí' : 'Thêm vào giỏ hàng'}
@@ -373,7 +374,7 @@ export default function CourseDetail() {
           {/* Compact enroll CTA (shows on scroll) */}
           {stickyVisible && !isEnrolled && (
             <button
-              onClick={addToCart}
+              onClick={price === 0 ? () => setShowTrialModal(true) : addToCart}
               style={{ padding: '9px 20px', background: '#0056D2', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
               {price === 0 ? 'Đăng ký miễn phí' : 'Thêm vào giỏ hàng'}
             </button>
@@ -689,6 +690,45 @@ export default function CourseDetail() {
           ))}
         </div>
       </div>
+
+      {/* ── TRIAL MODAL OVERLAY ── */}
+      {showTrialModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', width: '90%', maxWidth: 640, borderRadius: 8, padding: '40px', position: 'relative', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <button onClick={() => setShowTrialModal(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', fontSize: 28, color: '#9ca3af', cursor: 'pointer', padding: '0 8px' }}>&times;</button>
+            
+            <h2 style={{ fontSize: 26, fontWeight: 300, marginBottom: 32, color: '#111' }}>Dùng thử miễn phí 7 ngày</h2>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 36 }}>
+              {[
+                { title: 'Truy cập không giới hạn vào tất cả các khóa học trong Chuyên ngành', desc: 'Xem các bài giảng, làm thử các bài tập, tham gia vào các diễn đàn thảo luận và hơn thế nữa.' },
+                { title: 'Hủy bất cứ lúc nào.', desc: 'Không áp phí phạt - chỉ cần hủy trước khi bản dùng thử kết thúc nếu nó không phù hợp với bạn.' },
+                { title: '20 US$ USD mỗi tháng để tiếp tục học sau khi bản dùng thử của bạn kết thúc', desc: 'Học càng nhanh càng tốt - bạn học càng nhanh, bạn càng tiết kiệm được nhiều.' },
+                { title: 'Chứng chỉ khi bạn hoàn thành sau khi thời hạn dùng thử kết thúc', desc: 'Chia sẻ trên sơ yếu lý lịch, LinkedIn và CV của bạn.' }
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: '#111', marginBottom: 6 }}>{item.title}</div>
+                    <div style={{ fontSize: 14, color: '#4b5563', lineHeight: 1.5 }}>{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => { setShowTrialModal(false); navigate('/checkout?trial=true', { state: { program: course } }); }} 
+                style={{ padding: '16px 32px', background: '#0056D2', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 16, cursor: 'pointer', width: '100%' }}
+              >
+                Bắt đầu Dùng thử miễn phí
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
