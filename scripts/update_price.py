@@ -12,6 +12,6 @@ course = Course.objects.filter(title__icontains='ReactJS').first()
 if course:
     course.price = 1000
     course.save()
-    print(f"✅ Đã giảm giá khóa học '{course.title}' xuống còn {course.price} VND thành công!")
+    print(f" Đã giảm giá khóa học '{course.title}' xuống còn {course.price} VND thành công!")
 else:
-    print("❌ Không tìm thấy khóa học.")
+    print(" Không tìm thấy khóa học.")

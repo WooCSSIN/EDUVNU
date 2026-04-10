@@ -50,98 +50,35 @@ class OrderViewSet(viewsets.ModelViewSet):
                     OrderItem.objects.create(order=order, course=i.course, price=i.course.price)
                 items.delete()
 
-            # ── VNPAY ──────────────────────────────────────────
-            if payment_method == 'vnpay':
-                from .vnpay import vnpay as VnpayHelper
-                vnp = VnpayHelper()
-
-                # Lấy IP của người dùng
-                x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-                ip_addr = x_forwarded.split(',')[0] if x_forwarded else request.META.get('REMOTE_ADDR', '127.0.0.1')
-
-                vnp.requestData = {
-                    'vnp_Version':    '2.1.0',
-                    'vnp_Command':    'pay',
-                    'vnp_TmnCode':    settings.VNPAY_TMN_CODE,
-                    'vnp_Amount':     str(int(total_price) * 100),
-                    'vnp_CurrCode':   'VND',
-                    'vnp_TxnRef':     str(order.id),
-                    'vnp_OrderInfo':  f'Thanh toan don hang EduVNU {order.id}',
-                    'vnp_OrderType':  'billpayment',
-                    'vnp_Locale':     'vn',
-                    'vnp_ReturnUrl':  settings.VNPAY_RETURN_URL,
-                    'vnp_IpAddr':     ip_addr,
-                    'vnp_CreateDate': timezone.now().strftime('%Y%m%d%H%M%S'),
-                }
-
-                payment_url = vnp.get_payment_url(settings.VNPAY_PAYMENT_URL, settings.VNPAY_HASH_SECRET)
-                return Response({'payment_url': payment_url, 'order_id': order.id}, status=status.HTTP_201_CREATED)
-
-            # ── MOMO ───────────────────────────────────────────
-            if payment_method == 'momo':
-                from .momo_payment import MoMoPayment
-                momo = MoMoPayment()
-                momo_url = momo.create_payment_url(
-                    str(order.id), int(total_price),
-                    f'Thanh toan don hang EduVNU {order.id}'
-                )
-                if momo_url:
-                    return Response({'payment_url': momo_url, 'order_id': order.id}, status=status.HTTP_201_CREATED)
-                return Response({'error': 'Không thể tạo link MoMo. Kiểm tra lại key sandbox.'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # ── SEPAY / CHUYỂN KHOẢN ──────────────────────────
-            if payment_method in ['chuyen_khoan', 'sepay']:
-                import urllib.parse as up
-                qr_content = f"SEVQR{order.id}"
-                qr_url = (
-                    f"https://img.vietqr.io/image/VietinBank-103884327254-compact2.png"
-                    f"?amount={int(total_price)}&addInfo={qr_content}&accountName=HA%20NHAT%20NGUYEN%20VU"
-                )
-                payment_url = (
-                    f"http://localhost:5173/sepay-checkout"
-                    f"?order_id={order.id}&amount={int(total_price)}"
-                    f"&qr_url={up.quote_plus(qr_url)}&content={qr_content}"
-                )
-                return Response({'payment_url': payment_url, 'order_id': order.id}, status=status.HTTP_201_CREATED)
-
-            # ── STRIPE (Thẻ quốc tế Visa/Mastercard) ───────────────
-            if payment_method == 'card':
-                import stripe
-                stripe.api_key = settings.STRIPE_SECRET_KEY
-                payment_method_id = request.data.get('stripe_payment_method_id')
-
-                if not payment_method_id:
-                    return Response({'error': 'Thiếu thông tin thẻ (payment_method_id)'}, status=status.HTTP_400_BAD_REQUEST)
-
-                # Tạo và xác nhận PaymentIntent ngay trên Server
-                intent = stripe.PaymentIntent.create(
-                    amount=int(total_price) * 100,
-                    currency='vnd',
-                    payment_method=payment_method_id,
-                    confirm=True,
-                    automatic_payment_methods={'enabled': True, 'allow_redirects': 'never'},
-                    metadata={'order_id': str(order.id)},
-                )
-
-                if intent.status == 'succeeded':
+            # ── OOP PAYMENT STRATEGY ───────────────────────────
+            from .payments.factory import PaymentFactory
+            try:
+                provider = PaymentFactory.get_provider(payment_method)
+                result = provider.create_payment(order, request)
+                
+                if 'error' in result:
+                    return Response({'error': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Update order if paid immediately (Stripe succeeded)
+                if result.get('status') == 'success':
                     order.status = 'paid'
-                    order.transaction_id = intent.id
+                    order.transaction_id = result.get('transaction_id')
                     order.paid_at = timezone.now()
                     order.save()
                     _activate_enrollment(order)
-                    print(f"✅ Stripe: Đơn hàng #{order.id} thanh toán thành công - {intent.id}")
                     return Response({'status': 'success', 'order_id': order.id}, status=status.HTTP_201_CREATED)
-
-                elif intent.status == 'requires_action':
-                    # Yêu cầu 3D Secure (ngân hàng yêu cầu xác thực thêm)
-                    return Response({
-                        'status': 'requires_action',
-                        'client_secret': intent.client_secret,
-                        'order_id': order.id,
-                    }, status=status.HTTP_200_OK)
-
-                else:
-                    return Response({'error': f'Thanh toán thất bại (Stripe status: {intent.status})'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                return Response(result, status=status.HTTP_201_CREATED)
+                
+            except ValueError as e:
+                # Handle non-refactored methods or unsupported methods
+                if payment_method == 'momo':
+                    from .momo_payment import MoMoPayment
+                    momo = MoMoPayment()
+                    momo_url = momo.create_payment_url(str(order.id), int(total_price), f'Thanh toan EduVNU {order.id}')
+                    return Response({'payment_url': momo_url, 'order_id': order.id}, status=status.HTTP_201_CREATED)
+                
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
             return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
@@ -207,7 +144,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order.paid_at = timezone.now()
                 order.save()
                 _activate_enrollment(order)
-                print(f"✅ VNPAY Return: Đơn hàng #{order_id} thanh toán thành công - Giao dịch VNPAY #{transaction_no}")
+                print(f"[SUCCESS] VNPAY Return: Order #{order_id} payment success - VNPAY Trans #{transaction_no}")
 
             return Response({
                 'status': 'success',
@@ -241,7 +178,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         # Bước 1: Xác thực chữ ký
         if not vnp.validate_response(settings.VNPAY_HASH_SECRET):
-            print(f"❌ VNPAY IPN: Checksum không hợp lệ cho đơn #{order_id}")
+            print(f"[ERROR] VNPAY IPN: Invalid checksum for order #{order_id}")
             return Response({'RspCode': '97', 'Message': 'Invalid Signature'})
 
         try:
@@ -250,7 +187,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             # Bước 2: Kiểm tra số tiền có khớp không
             expected_amount = int(order.total_price) * 100
             if vnp_amount != expected_amount:
-                print(f"❌ VNPAY IPN: Số tiền không khớp cho đơn #{order_id}: expected {expected_amount}, got {vnp_amount}")
+                print(f"[ERROR] VNPAY IPN: Price mismatch for order #{order_id}: expected {expected_amount}, got {vnp_amount}")
                 return Response({'RspCode': '04', 'Message': 'Invalid Amount'})
 
             # Bước 3: Kiểm tra đơn hàng đã xử lý chưa
@@ -264,16 +201,16 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order.paid_at = timezone.now()
                 order.save()
                 _activate_enrollment(order)
-                print(f"✅ VNPAY IPN: Đơn hàng #{order_id} xác nhận thành công qua IPN")
+                print(f"[SUCCESS] VNPAY IPN: Order #{order_id} confirmed via IPN")
                 return Response({'RspCode': '00', 'Message': 'Confirm Success'})
             else:
                 order.status = 'failed'
                 order.save()
-                print(f"⚠️ VNPAY IPN: Giao dịch thất bại cho đơn #{order_id} - Mã: {response_code}")
+                print(f"[WARNING] VNPAY IPN: Transaction failed for order #{order_id} - Code: {response_code}")
                 return Response({'RspCode': '00', 'Message': 'Confirm Success'})
 
         except Order.DoesNotExist:
-            print(f"❌ VNPAY IPN: Không tìm thấy đơn hàng #{order_id}")
+            print(f"[ERROR] VNPAY IPN: Order not found #{order_id}")
             return Response({'RspCode': '01', 'Message': 'Order Not Found'})
 
     # =========================================================
@@ -329,7 +266,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                         order.paid_at = timezone.now()
                         order.save()
                         _activate_enrollment(order)
-                        print(f"✅ SePay Webhook: Đơn hàng #{order_id} thanh toán thành công")
+                        print(f"[SUCCESS] SePay Webhook: Order #{order_id} payment success")
                     return Response({'success': True})
                 except Order.DoesNotExist:
                     return Response({'success': False, 'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)

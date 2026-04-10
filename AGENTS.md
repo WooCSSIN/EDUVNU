@@ -2,7 +2,7 @@
 
 Project: EduVNU / EduHub
 Tech stack: React (Vite), Django REST API, MS SQL Server, Vanilla CSS
-Package manager: npm / pip (kết hợp Docker)
+Package manager: npm / pip 
 
 ## Mô tả project
 - Tên: EduVNU / EduHub

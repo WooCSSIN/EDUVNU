@@ -36,6 +36,15 @@ export default function Auth() {
   return (
     <div className="crs-auth-page">
       <div className="crs-auth-left">
+        <div className="crs-spline-container">
+          <iframe 
+            src="https://my.spline.design/animatedshapeblend-Xyfv75Xnj63kq18pxYYCVAbJ/" 
+            frameBorder="0" 
+            width="100%" 
+            height="100%"
+            title="Spline 3D Design"
+          ></iframe>
+        </div>
         <div className="crs-auth-left-content">
           <h2>Học không giới hạn</h2>
           <p>Phát triển kỹ năng của bạn với các khóa học từ Google, IBM, Meta và hàng trăm tổ chức hàng đầu.</p>
@@ -49,22 +58,22 @@ export default function Auth() {
           <form className="crs-auth-form" onSubmit={onSubmit}>
             {!isLogin && (
               <div className="crs-field">
-                <label>Email</label>
-                <input type="email" name="email" value={form.email} onChange={onChange} required />
+                <label htmlFor="email">Email</label>
+                <input id="email" type="email" name="email" value={form.email} onChange={onChange} required />
               </div>
             )}
             <div className="crs-field">
-              <label>{isLogin ? 'Tên đăng nhập' : 'Tên đăng nhập'}</label>
-              <input type="text" name="username" value={form.username} onChange={onChange} required />
+              <label htmlFor="username">{isLogin ? 'Tên đăng nhập' : 'Tên đăng nhập'}</label>
+              <input id="username" type="text" name="username" value={form.username} onChange={onChange} required />
             </div>
             <div className="crs-field">
-              <label>Mật khẩu</label>
-              <input type="password" name="password" value={form.password} onChange={onChange} required />
+              <label htmlFor="password">Mật khẩu</label>
+              <input id="password" type="password" name="password" value={form.password} onChange={onChange} required />
             </div>
             {!isLogin && (
               <div className="crs-field">
-                <label>Nhập lại mật khẩu</label>
-                <input type="password" name="password2" value={form.password2} onChange={onChange} required />
+                <label htmlFor="password2">Nhập lại mật khẩu</label>
+                <input id="password2" type="password" name="password2" value={form.password2} onChange={onChange} required />
               </div>
             )}
             <button type="submit" className="crs-auth-submit" disabled={loading}>
