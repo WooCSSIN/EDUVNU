@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+  baseURL: 'http://127.0.0.1:8000/api/v1',
 });
 
 // Tự động đính kèm JWT token vào mọi request
@@ -23,7 +23,7 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem('refresh_token');
       if (refresh) {
         try {
-          const res = await axios.post('http://127.0.0.1:8000/api/accounts/token/refresh/', { refresh });
+          const res = await axios.post('http://127.0.0.1:8000/api/v1/accounts/token/refresh/', { refresh });
           localStorage.setItem('access_token', res.data.access);
           original.headers.Authorization = `Bearer ${res.data.access}`;
           return api(original);

@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Category, Course, Lesson, Enrollment, UserProgress, Review, ContactMessage
+from .models import (
+    Category, Course, Lesson, Enrollment, UserProgress, Review, ContactMessage,
+    Chapter, Quiz, Question, Choice, Notification
+)
 from accounts.models import User
 
 
@@ -21,6 +24,38 @@ class LessonSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'order_number', 'video_url', 'content', 'course']
 
 
+class ChoiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Choice
+        fields = ['id', 'text', 'is_correct']
+
+class QuestionSerializer(serializers.ModelSerializer):
+    choices = ChoiceSerializer(many=True, read_only=True)
+    class Meta:
+        model = Question
+        fields = ['id', 'text', 'order', 'choices']
+
+class QuizSerializer(serializers.ModelSerializer):
+    questions = QuestionSerializer(many=True, read_only=True)
+    class Meta:
+        model = Quiz
+        fields = ['id', 'title', 'description', 'passing_score', 'questions']
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'title', 'message', 'is_read', 'link', 'created_at']
+
+
+class ChapterSerializer(serializers.ModelSerializer):
+    lessons = LessonSerializer(many=True, read_only=True)
+    quiz = QuizSerializer(read_only=True)
+
+    class Meta:
+        model = Chapter
+        fields = ['id', 'title', 'order', 'lessons', 'quiz']
+
+
 class CourseSerializer(serializers.ModelSerializer):
     instructor = InstructorSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
@@ -33,6 +68,7 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = '__all__'
+        read_only_fields = ['instructor', 'rating_avg', 'num_reviews', 'is_active', 'created_at']
 
     def get_lesson_count(self, obj):
         return obj.lessons.filter(is_active=True).count()
@@ -44,6 +80,7 @@ class CourseSerializer(serializers.ModelSerializer):
 
 
 class CourseDetailSerializer(CourseSerializer):
+    chapters = ChapterSerializer(many=True, read_only=True)
     lessons = LessonSerializer(many=True, read_only=True)
 
 

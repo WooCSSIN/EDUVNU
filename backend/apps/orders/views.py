@@ -11,10 +11,20 @@ from courses.models import Enrollment
 import re
 
 
+def _clear_cart(order):
+    """Helper: Xóa các khóa học đã thanh toán khỏi giỏ hàng."""
+    try:
+        cart = Cart.objects.get(user=order.user)
+        course_ids = order.items.values_list('course_id', flat=True)
+        CartItem.objects.filter(cart=cart, course_id__in=course_ids).delete()
+    except Cart.DoesNotExist:
+        pass
+
 def _activate_enrollment(order):
     """Helper: Kích hoạt khóa học sau khi thanh toán thành công."""
     for item in order.items.all():
         Enrollment.objects.get_or_create(user=order.user, course=item.course)
+    _clear_cart(order)
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -48,7 +58,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 )
                 for i in items:
                     OrderItem.objects.create(order=order, course=i.course, price=i.course.price)
-                items.delete()
+                # items.delete() - REMOVED: Will be deleted when payment is confirmed
 
             # ── OOP PAYMENT STRATEGY ───────────────────────────
             from .payments.factory import PaymentFactory

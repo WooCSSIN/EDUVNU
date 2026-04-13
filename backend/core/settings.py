@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'corsheaders',
 
     # Third party apps
+    'django_celery_beat',
     'rest_framework',
     'rest_framework_simplejwt',
 
@@ -62,6 +63,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -97,17 +99,25 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'mssql',
-        'NAME': 'Courses',
-        'USER': '',
-        'PASSWORD': '',
-        'HOST': 'localhost\\KMS',
-        'PORT': '',
+        'NAME': os.getenv('DB_NAME', 'Courses'),
+        'USER': os.getenv('DB_USER', ''),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),
+        'HOST': os.getenv('DB_HOST', 'localhost\\KMS'),
+        'PORT': os.getenv('DB_PORT', ''),
         'OPTIONS': {
-            'driver': 'ODBC Driver 18 for SQL Server',
-            'extra_params': 'Trusted_Connection=yes;Encrypt=no;TrustServerCertificate=yes;',
+            'driver': os.getenv('DB_DRIVER', 'ODBC Driver 18 for SQL Server'),
+            'extra_params': 'Trusted_Connection=yes;Encrypt=no;TrustServerCertificate=yes;' if not os.getenv('DB_USER') else 'Encrypt=no;TrustServerCertificate=yes;',
         },
     }
 }
+
+# ─── Cấu hình Celery & Redis (Background Tasks Worker) ────────
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/1')
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -148,6 +158,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Optimize static files storage with compression
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

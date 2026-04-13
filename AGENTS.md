@@ -63,7 +63,23 @@ VNU/
 - Không chia nhỏ component khi chưa được yêu cầu refactor
 - Không tự động tạo mock data nếu đã có API thật
 
-# Technical Gotchas & Lưu ý (Đã cập nhật mới nhất)
-- **Cơ sở dữ liệu MS SQL Server**: Hệ quản trị này cực kỳ nhạy cảm với các hàm đếm hoặc `.distinct()` đi kèm JOIN trong Django ORM (thường sẽ gây lỗi 500 sập ngầm API). Khắc phục: Lọc thủ công bằng Python (ví dụ List Comprehension trong hàm `list()`) thay cho các câu lệnh `filter` quá phức tạp của ORM.
-- **Giao diện Spline 3D**: Nếu dùng Iframe từ Spline làm ảnh nền (Background), để giấu đi logo / watermark "Built with Spline", hãy cấp thẻ div chứa nó thuộc tính `overflow: hidden`, còn thẻ `<iframe />` thì cấp `height: calc(100% + 80px)` để giấu logo lún khỏi tầm nhìn.
-- **Mẹo thu phóng hình ảnh viền rộng (Logo)**: Trong trường hợp ảnh gốc (như PNG) bị quá nhiều khoảng trắng (vùng transparent) khiến logo khi nhét vào khung sẽ bị nhỏ nhí, nên dùng thuộc tính CSS `transform: scale(2.0, 3.0,...)` để phóng to phần lõi ảnh mà không làm vỡ hoặc đẩy cấu trúc Layout gốc.
+# Tình trạng dự án & Thành tựu (Cập nhật 13/04/2026)
+- **✅ Đã Fix 6/6 Bug chính trong bugfix_plan.md**: 
+  1. Bảng học viên giảng viên: Đã tối ưu SQL Aggregate/Prefetch để vượt lỗi MSSQL.
+  2. Khóa học của giảng viên: Đã map instructor cho các khóa học mock.
+  3. Cài đặt hồ sơ: Đã fix React Controlled Inputs và API Patch.
+  4. Hệ thống thông báo: Tích hợp Bell Header và tự động gửi thông báo duyệt khóa học.
+  5. Profile User: Fix Serializer writable fields (first_name, last_name, etc).
+  6. Lịch sử giao dịch: Fix rendering cho cả paginated và list response.
+- **✅ Tối ưu Backend**: Triển khai heartbeat buffer lưu thời gian học vào RAM trước khi flush vào DB.
+- **✅ Content Automation**: Hoàn thiện script `seed_mock_lessons.py` mapping YouTube video chất lượng cao.
+
+# Technical Gotchas & Lưu ý (Quan trọng nhất)
+- **Cơ sở dữ liệu MS SQL Server**: Hệ quản trị này cực kỳ nhạy cảm với `.distinct()` + JOIN. 
+  * *Giải pháp*: Dùng `Exists()` subquery cho filter và `aggregate()` cho statistics. Tránh loop Python nếu có thể xử lý ở SQL. 
+- **Optimization pattern**: Khi lấy danh sách học viên hoặc analytics, hãy tính toán tổng hợp tại SQL. Luôn sử dụng `select_related` và `prefetch_related` để giảm N+1 queries.
+- **Giao diện Spline 3D**: Ẩn watermark Spline bằng `overflow: hidden` ở div cha và `height: calc(100% + 80px)` ở iframe.
+- **Mẹo thu phóng logo**: Dùng CSS `transform: scale(...)` để xử lý ảnh logo có nhiều khoảng trắng mà không hỏng layout.
+- **Quản lý Video Khóa học (YouTube)**: Dùng script `seed_mock_lessons.py` để map videoID. Tuyệt đối không gọi YouTube API trực tiếp phí quota.
+- **Luồng Xóa Giỏ Hàng**: Chỉ xóa cart khi có xác nhận thành công thanh toán (`status='paid'`). Không xóa ở bước khởi tạo đơn hàng.
+- **Notification Flow**: Mọi hành động quan trọng (Approved, Rejected, Paid) đều phải lưu vào model `Notification`.

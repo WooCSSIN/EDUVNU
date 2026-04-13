@@ -1,0 +1,191 @@
+/* Instructor Dashboard Styles - Premium Glassmorphism */
+
+.instructor-container {
+    display: flex;
+    min-height: 100vh;
+    background: #f8fafc;
+    color: #1e293b;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Sidebar */
+.instructor-sidebar {
+    width: 280px;
+    background: linear-gradient(180deg, #0056d2 0%, #003a91 100%);
+    color: white;
+    padding: 2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+}
+
+.instructor-sidebar .logo-area {
+    margin-bottom: 3rem;
+    padding-left: 0.5rem;
+}
+
+.sidebar-nav {
+    list-style: none;
+    padding: 0;
+    flex-grow: 1;
+}
+
+.sidebar-nav li {
+    margin-bottom: 0.5rem;
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.sidebar-link:hover, .sidebar-link.active {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    transform: translateX(5px);
+}
+
+.sidebar-link .icon {
+    margin-right: 12px;
+    font-size: 1.2rem;
+}
+
+/* Main Content */
+.instructor-main {
+    flex-grow: 1;
+    padding: 2rem 3rem;
+    background: url('https://www.transparenttextures.com/patterns/cubes.png');
+}
+
+.instructor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2.5rem;
+}
+
+.instructor-header h1 {
+    font-size: 1.875rem;
+    font-weight: 700;
+}
+
+.btn-create-course {
+    background: linear-gradient(135deg, #0056d2 0%, #003a91 100%);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: all 0.3s ease;
+}
+
+.btn-create-course:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 86, 210, 0.3);
+}
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+}
+
+.stat-card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    padding: 1.5rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.stat-card .label {
+    color: #64748b;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.stat-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.stat-card .change {
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+}
+
+.stat-card .change.up { color: #10b981; }
+
+/* Course Table Card */
+.content-card {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e2e8f0;
+}
+
+.content-card h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.course-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.course-table th {
+    text-align: left;
+    padding: 1rem;
+    border-bottom: 2px solid #f1f5f9;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.course-table td {
+    padding: 1.25rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.course-info {
+    display: flex;
+    align-items: center;
+}
+
+.course-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    margin-right: 12px;
+    object-fit: cover;
+}
+
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-published { background: #dcfce7; color: #166534; }
+.badge-draft { background: #f1f5f9; color: #475569; }
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .instructor-sidebar { width: 80px; padding: 2rem 1rem; }
+    .sidebar-link span { display: none; }
+    .instructor-sidebar .logo-area { display: none; }
+}

@@ -1,10 +1,23 @@
 from rest_framework import viewsets, permissions, generics, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from .models import User
 from .serializers import UserSerializer, RegisterSerializer
+
+
+class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        data['user_id'] = self.user.id
+        data['is_instructor'] = self.user.is_instructor
+        return data
+
+class MyTokenObtainPairView(TokenObtainPairView):
+    serializer_class = MyTokenObtainPairSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -25,6 +38,7 @@ class RegisterView(generics.CreateAPIView):
 
 
 class LoginView(generics.GenericAPIView):
+    serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):

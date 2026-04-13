@@ -1,25 +1,230 @@
-from rest_framework import viewsets, permissions, status
+from decimal import Decimal
+from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q
-from .models import Category, Course, Lesson, Enrollment, UserProgress, Review, ContactMessage
+from rest_framework.views import APIView
+from rest_framework.throttling import AnonRateThrottle
+from django.db.models import Q, Sum, Avg, Count, Exists, OuterRef, Subquery, F, Value, IntegerField
+from .models import (
+    Category, Course, Lesson, Enrollment, UserProgress, 
+    Review, ContactMessage, Certificate, InstructorWallet, WalletTransaction, WithdrawalRequest, CourseAnnouncement,
+    Chapter, Quiz, Question, Choice, QuizAttempt, Notification
+)
+from .permissions import IsInstructor, IsCourseOwner
 from .serializers import (
-    CategorySerializer, CourseSerializer, CourseDetailSerializer,
-    LessonSerializer, EnrollmentSerializer, UserProgressSerializer, ReviewSerializer, ContactMessageSerializer
+    CategorySerializer, CourseSerializer, CourseDetailSerializer, ChapterSerializer,
+    LessonSerializer, EnrollmentSerializer, UserProgressSerializer, ReviewSerializer, 
+    ContactMessageSerializer, QuizSerializer, QuestionSerializer, ChoiceSerializer, NotificationSerializer
 )
 
 
+# ─── Rate Limiter cho QR Verify ─────────────────────────────────
+class CertificateVerifyThrottle(AnonRateThrottle):
+    """Giới hạn 10 request/phút per IP để chống brute-force UUID."""
+    rate = '10/min'
+
+
+class CertificateVerifyView(APIView):
+    """
+    Public endpoint: Xác thực chứng chỉ qua UUID từ QR Code.
+    GET /api/v1/courses/certificates/verify/<uuid>/
+    
+    Rate-limited: 10 requests/phút per IP.
+    """
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [CertificateVerifyThrottle]
+
+    def get(self, request, certificate_uuid):
+        try:
+            cert = Certificate.objects.select_related(
+                'enrollment__user', 'enrollment__course'
+            ).get(certificate_id=certificate_uuid)
+        except Certificate.DoesNotExist:
+            return Response(
+                {'valid': False, 'error': 'Chứng chỉ không tồn tại hoặc đã bị thu hồi.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        user = cert.enrollment.user
+        course = cert.enrollment.course
+        
+        return Response({
+            'valid': True,
+            'certificate_id': str(cert.certificate_id),
+            'student_name': f"{user.first_name} {user.last_name}".strip() or user.username,
+            'course_title': course.title,
+            'subject_code': course.subject_code,
+            'faculty': course.faculty or 'VNU System',
+            'issued_at': cert.issued_at.strftime('%d/%m/%Y'),
+        })
+
+
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def mark_as_read(self, request, pk=None):
+        notif = self.get_object()
+        notif.is_read = True
+        notif.save()
+        return Response({'status': 'read'})
+
+class AdminCourseViewSet(viewsets.ModelViewSet):
+    queryset = Course.objects.filter(status='pending')
+    serializer_class = CourseSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        course = self.get_object()
+        course.status = 'published'
+        course.save()
+        
+        # Gửi thông báo cho giảng viên
+        Notification.objects.create(
+            user=course.instructor,
+            title="Chúc mừng! Khóa học đã được duyệt",
+            message=f"Khóa học '{course.title}' của bạn đã được phê duyệt và đang công khai.",
+            link=f"/course/{course.id}"
+        )
+        return Response({'status': 'approved'})
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        course = self.get_object()
+        reason = request.data.get('reason', 'Không đạt tiêu chí nội dung.')
+        course.status = 'rejected'
+        course.rejection_reason = reason
+        course.save()
+        
+        # Gửi thông báo cho giảng viên
+        Notification.objects.create(
+            user=course.instructor,
+            title="Khóa học bị từ chối phê duyệt",
+            message=f"Rất tiếc, khóa học '{course.title}' bị từ chối. Lý do: {reason}",
+            link=f"/instructor/course/{course.id}/edit"
+        )
+        return Response({'status': 'rejected'})
+
+
+class ChapterViewSet(viewsets.ModelViewSet):
+    queryset = Chapter.objects.all()
+    serializer_class = ChapterSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        course_id = self.request.query_params.get('course')
+        if course_id:
+            return self.queryset.filter(course_id=course_id)
+        return self.queryset
+
+    def perform_create(self, serializer):
+        # Tự động gán order nếu chưa có
+        course_id = self.request.data.get('course')
+        if course_id:
+            order = Chapter.objects.filter(course_id=course_id).count() + 1
+            serializer.save(order=order)
+        else:
+            serializer.save()
+
+class QuizViewSet(viewsets.ModelViewSet):
+    queryset = Quiz.objects.all()
+    serializer_class = QuizSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=True, methods=['post'])
+    def submit(self, request, pk=None):
+        """Chấm điểm bài trắc nghiệm tự động."""
+        quiz = self.get_object()
+        answers = request.data.get('answers', []) # List of choice IDs
+        
+        total_questions = quiz.questions.count()
+        if total_questions == 0:
+            return Response({'error': 'Bài kiểm tra không có câu hỏi.'}, status=400)
+            
+        correct_count = 0
+        results = []
+        
+        # Kiểm tra từng câu hỏi
+        for question in quiz.questions.all():
+            correct_choice = question.choices.filter(is_correct=True).first()
+            user_choice_id = None
+            
+            # Kiểm tra xem User có chọn đáp án cho câu này không
+            for ans in answers:
+                choice = Choice.objects.filter(id=ans, question=question).first()
+                if choice:
+                    user_choice_id = ans
+                    break
+            
+            is_correct = (user_choice_id == correct_choice.id) if correct_choice else False
+            if is_correct:
+                correct_count += 1
+                
+            results.append({
+                'question_id': question.id,
+                'is_correct': is_correct,
+                'correct_choice_id': correct_choice.id if correct_choice else None,
+                'user_choice_id': user_choice_id
+            })
+            
+        score_percent = (correct_count / total_questions) * 100
+        passed = score_percent >= quiz.passing_score
+        
+        # Lưu lịch sử làm bài
+        QuizAttempt.objects.create(
+            user=request.user,
+            quiz=quiz,
+            score=score_percent,
+            passed=passed
+        )
+        
+        return Response({
+            'score': score_percent,
+            'passed': passed,
+            'correct_count': correct_count,
+            'total_questions': total_questions,
+            'results': results
+        })
+
+class QuestionViewSet(viewsets.ModelViewSet):
+    queryset = Question.objects.all()
+    serializer_class = QuestionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class ChoiceViewSet(viewsets.ModelViewSet):
+    queryset = Choice.objects.all()
+    serializer_class = ChoiceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
 from django.db.models import Count
+from django.http import HttpResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import landscape, A4
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.utils import ImageReader
+import qrcode
+from io import BytesIO
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.filter(is_active=True)
     serializer_class = CategorySerializer
 
     def list(self, request, *args, **kwargs):
-        # Lọc thủ công bằng Python để tránh lỗi tương thích SQL Server khi dùng JOIN/Count
-        queryset = self.filter_queryset(self.get_queryset())
-        valid_cats = [cat for cat in queryset if cat.courses.filter(is_active=True).exists()]
-        serializer = self.get_serializer(valid_cats, many=True)
+        # SQL-level filter: dùng Exists subquery thay vì load toàn bộ data lên Python
+        # MS SQL Server xử lý tốt pattern EXISTS (SELECT 1 FROM ...) — không gây lỗi như distinct()
+        has_active_courses = Exists(
+            Course.objects.filter(category=OuterRef('pk'), is_active=True)
+        )
+        queryset = self.filter_queryset(
+            self.get_queryset().filter(has_active_courses)
+        )
+        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
 
@@ -92,6 +297,96 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = LessonSerializer(lessons, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def certificate(self, request, pk=None):
+        """Tạo và tải chứng chỉ PDF nếu user hoàn thành 100% khóa học."""
+        course = self.get_object()
+        try:
+            enrollment = Enrollment.objects.get(user=request.user, course=course)
+        except Enrollment.DoesNotExist:
+            return Response({"error": "Chưa đăng ký khóa học."}, status=status.HTTP_403_FORBIDDEN)
+        
+        total = Lesson.objects.filter(course=course, is_active=True).count()
+        completed = UserProgress.objects.filter(user=request.user, lesson__course=course, status='completed').count()
+        
+        if total == 0 or completed < total:
+            return Response({"error": "Chưa hoàn thành khóa học."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        cert, created = Certificate.objects.get_or_create(enrollment=enrollment)
+        
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Certificate-{course.id}.pdf"'
+        
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=landscape(A4))
+        width, height = landscape(A4)
+        
+        # Load font để hỗ trợ Tiếng Việt (nếu có Arial/Tahoma trên máy)
+        try:
+            if os.path.exists('C:/Windows/Fonts/arial.ttf'):
+                pdfmetrics.registerFont(TTFont('Arial', 'C:/Windows/Fonts/arial.ttf'))
+                font_name = 'Arial'
+            else:
+                font_name = 'Helvetica'
+        except:
+            font_name = 'Helvetica'
+            
+        # Draw background or borders
+        c.setStrokeColorRGB(0.1, 0.5, 0.8)
+        c.setLineWidth(10)
+        c.rect(20, 20, width-40, height-40)
+        
+        c.setFont(font_name, 40)
+        c.drawCentredString(width/2.0, height - 120, "GIAY CHUNG NHAN")
+        
+        c.setFont(font_name, 20)
+        c.drawCentredString(width/2.0, height - 170, "CHUNG NHAN RANG")
+        
+        c.setFont(font_name, 30)
+        c.setFillColorRGB(0.1, 0.3, 0.7)
+        user_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
+        import unicodedata
+        user_name_ascii = unicodedata.normalize('NFKD', user_name).encode('ASCII', 'ignore').decode('utf-8')
+        c.drawCentredString(width/2.0, height - 230, user_name.upper())
+        
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont(font_name, 16)
+        c.drawCentredString(width/2.0, height - 280, "Da hoan thanh xuat sac khoa hoc:")
+        
+        c.setFont(font_name, 24)
+        c.setFillColorRGB(0.8, 0.2, 0.2)
+        course_name = f"[{course.subject_code}] {course.title}" if course.subject_code else course.title
+        course_name_ascii = unicodedata.normalize('NFKD', course_name).encode('ASCII', 'ignore').decode('utf-8')
+        c.drawCentredString(width/2.0, height - 330, course_name.upper() if font_name == 'Arial' else course_name_ascii.upper())
+        
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont(font_name, 14)
+        faculty = course.faculty or "VNU System"
+        c.drawCentredString(width/2.0, height - 380, f"Cap boi: {faculty}")
+        c.drawCentredString(width/2.0, height - 410, f"Ma xac thuc: {cert.certificate_id}")
+        c.drawCentredString(width/2.0, height - 440, f"Ngay cap: {cert.issued_at.strftime('%d/%m/%Y')}")
+        
+        # Draw QR Code using qrcode package
+        qr = qrcode.QRCode(version=1, box_size=5, border=1)
+        verify_url = f"http://127.0.0.1:8000/api/v1/courses/certificates/verify/{cert.certificate_id}/"
+        qr.add_data(verify_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        qr_buffer = BytesIO()
+        img.save(qr_buffer, format="PNG")
+        qr_buffer.seek(0)
+        
+        qr_image = ImageReader(qr_buffer)
+        c.drawImage(qr_image, width/2.0 - 50, 40, width=100, height=100)
+        
+        c.save()
+        pdf_value = buffer.getvalue()
+        buffer.close()
+        response.write(pdf_value)
+        
+        return response
+
 
 class LessonViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Lesson.objects.filter(is_active=True)
@@ -122,6 +417,31 @@ class UserProgressViewSet(viewsets.GenericViewSet):
         )
         return Response(UserProgressSerializer(progress).data)
 
+    @action(detail=False, methods=['post'])
+    def heartbeat(self, request):
+        """Cộng dồn thời gian học thực tế: { lesson_id, seconds }
+        
+        Tối ưu: Ghi vào in-memory buffer thay vì DB trực tiếp.
+        Buffer được flush vào DB mỗi 5 phút bởi background thread.
+        """
+        from .heartbeat_buffer import add_heartbeat, start_flusher
+        start_flusher()  # Idempotent: chỉ khởi động 1 lần
+        
+        lesson_id = request.data.get('lesson_id')
+        seconds = int(request.data.get('seconds', 0))
+        
+        if not lesson_id:
+            return Response({'error': 'lesson_id là bắt buộc.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate lesson tồn tại (cache-friendly vì Lesson ít thay đổi)
+        if not Lesson.objects.filter(id=lesson_id, is_active=True).exists():
+            return Response({'error': 'Bài học không tồn tại.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Đẩy vào buffer — KHÔNG ghi DB
+        add_heartbeat(request.user.id, lesson_id, seconds)
+        
+        return Response({'status': 'buffered', 'seconds': seconds})
+
     @action(detail=False, methods=['get'])
     def my_progress(self, request):
         """Lấy toàn bộ tiến độ học của user."""
@@ -132,6 +452,8 @@ class UserProgressViewSet(viewsets.GenericViewSet):
         return Response(UserProgressSerializer(qs, many=True).data)
 
 
+from django.utils import timezone
+
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
@@ -140,7 +462,273 @@ class ReviewViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def reply(self, request, pk=None):
+        review = self.get_object()
+        # Kiểm tra xem người dùng có phải là giảng viên của khóa học này không
+        if review.course.instructor != request.user:
+            return Response({'error': 'Bạn không có quyền phản hồi đánh giá này.'}, status=403)
+            
+        reply_content = request.data.get('reply')
+        if not reply_content:
+            return Response({'error': 'Nội dung phản hồi không được để trống.'}, status=400)
+            
+        review.instructor_reply = reply_content
+        review.replied_at = timezone.now()
+        review.save()
+        
+        return Response({'message': 'Đã gửi phản hồi thành công.'})
+
 class ContactMessageViewSet(viewsets.ModelViewSet):
     queryset = ContactMessage.objects.all()
     serializer_class = ContactMessageSerializer
     permission_classes = [permissions.AllowAny]
+
+
+# --- API DÀNH RIÊNG CHO GIẢNG VIÊN (INSTRUCTOR ONLY) ---
+class InstructorCourseViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet dành riêng cho Giảng viên quản lý khóa học của mình.
+    """
+    serializer_class = CourseSerializer
+    permission_classes = [IsInstructor, IsCourseOwner]
+
+    def get_queryset(self):
+        # RÀ SOÁT LỖI: Luôn lọc theo instructor hiện tại và hiện cái mới nhất lên trên
+        return Course.objects.filter(instructor=self.request.user).order_by('-id')
+
+    def perform_create(self, serializer):
+        # Tự động gán instructor là người dùng hiện tại
+        serializer.save(instructor=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def submit_review(self, request, pk=None):
+        """Giảng viên gửi khóa học đi phê duyệt."""
+        course = self.get_object()
+        course.status = 'pending'
+        course.save()
+        return Response({'status': 'submitted for review'})
+
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Lấy thống kê tổng quan thực tế cho Dashboard giảng viên."""
+        from orders.models import OrderItem
+        my_courses = self.get_queryset()
+        total_courses = my_courses.count()
+        
+        # Thống kê học viên thực tế
+        total_students = Enrollment.objects.filter(course__in=my_courses).count()
+        
+        # Thống kê doanh thu thực tế (Tổng giá trị các đơn hàng đã Paid cho các khóa của mình)
+        paid_items = OrderItem.objects.filter(course__instructor=request.user, order__status='paid')
+        total_revenue = paid_items.aggregate(total=Sum('price'))['total'] or 0
+        
+        # Doanh thu thực nhận (70%)
+        my_earnings = float(total_revenue) * 70 / 100
+        
+        return Response({
+            'total_courses': total_courses,
+            'total_students': total_students,
+            'total_revenue': float(total_revenue),
+            'my_earnings': my_earnings
+        })
+
+    @action(detail=False, methods=['get'])
+    def detailed_analytics(self, request):
+        """Phân tích chi tiết với dữ liệu thời gian thực (time_spent)."""
+        my_courses = self.get_queryset()
+        
+        # 1. Tổng thời lượng học (giờ) — single aggregate, không loop
+        total_seconds = UserProgress.objects.filter(lesson__course__in=my_courses).aggregate(total=Sum('time_spent'))['total'] or 0
+        total_hours = round(total_seconds / 3600, 1)
+        
+        # 2. Tỷ lệ hoàn thành — annotate tại SQL thay vì N+1 loop
+        #    Dùng Subquery để đếm lessons và completions cho mỗi course
+        lesson_count_sq = Subquery(
+            Lesson.objects.filter(course=OuterRef('pk'), is_active=True)
+            .values('course').annotate(cnt=Count('id')).values('cnt')[:1],
+            output_field=IntegerField()
+        )
+        completed_count_sq = Subquery(
+            UserProgress.objects.filter(lesson__course=OuterRef('pk'), status='completed')
+            .values('lesson__course').annotate(cnt=Count('id')).values('cnt')[:1],
+            output_field=IntegerField()
+        )
+        enrolled_count_sq = Subquery(
+            Enrollment.objects.filter(course=OuterRef('pk'))
+            .values('course').annotate(cnt=Count('id')).values('cnt')[:1],
+            output_field=IntegerField()
+        )
+        
+        annotated_courses = my_courses.annotate(
+            total_lessons=lesson_count_sq,
+            completed_lessons=completed_count_sq,
+            total_enrolled=enrolled_count_sq
+        )
+        
+        completion_data = []
+        for course in annotated_courses:
+            t_lessons = course.total_lessons or 0
+            t_enrolled = course.total_enrolled or 0
+            c_lessons = course.completed_lessons or 0
+            if t_lessons > 0 and t_enrolled > 0:
+                rate = round((c_lessons / (t_lessons * t_enrolled)) * 100, 1)
+            else:
+                rate = 0
+            completion_data.append({
+                'name': course.title,
+                'rate': rate,
+                'total_students': t_enrolled
+            })
+        
+        return Response({
+            'total_hours': total_hours,
+            'completion_data': completion_data,
+            'active_students': Enrollment.objects.filter(course__in=my_courses).count(),
+        })
+
+    @action(detail=False, methods=['get'])
+    def my_students(self, request):
+        """Lấy danh sách học viên thật đang học các khóa của mình."""
+        my_courses = self.get_queryset()
+        enrollments = Enrollment.objects.filter(course__in=my_courses).select_related('user', 'course')
+        
+        # Pre-fetch: đếm tổng lessons mỗi course 1 lần duy nhất (thay vì query N lần trong loop)
+        course_lesson_counts = {}
+        for c in my_courses:
+            course_lesson_counts[c.id] = Lesson.objects.filter(course=c, is_active=True).count()
+        
+        # Pre-fetch: đếm completed lessons cho mỗi cặp (user, course) bằng 1 query duy nhất
+        completed_qs = (
+            UserProgress.objects.filter(
+                lesson__course__in=my_courses,
+                status='completed'
+            )
+            .values('user_id', 'lesson__course_id')
+            .annotate(done=Count('id'))
+        )
+        completed_map = {}
+        for row in completed_qs:
+            completed_map[(row['user_id'], row['lesson__course_id'])] = row['done']
+        
+        result = []
+        for e in enrollments:
+            total_lessons = course_lesson_counts.get(e.course_id, 0)
+            completed = completed_map.get((e.user_id, e.course_id), 0)
+            
+            result.append({
+                'id': e.id,
+                'student_name': f"{e.user.first_name} {e.user.last_name}".strip() or e.user.username,
+                'email': e.user.email,
+                'course_title': e.course.title,
+                'enrolled_at': e.enrolled_at,
+                'progress': round((completed / total_lessons * 100) if total_lessons > 0 else 0)
+            })
+            
+        return Response(result)
+
+    @action(detail=False, methods=['get'])
+    def my_reviews(self, request):
+        """Lấy toàn bộ đánh giá của các khóa học thuộc giảng viên này."""
+        my_courses = self.get_queryset()
+        reviews = Review.objects.filter(course__in=my_courses).order_by('-created_at')
+        from .serializers import ReviewSerializer
+        return Response(ReviewSerializer(reviews, many=True).data)
+
+    @action(detail=False, methods=['get'])
+    def finance_data(self, request):
+        """Lấy dữ liệu ví tiền và lịch sử giao dịch từ Sổ cái (Ledger)."""
+        wallet, _ = InstructorWallet.objects.get_or_create(user=request.user)
+        
+        # Lấy lịch sử giao dịch từ sổ cái
+        ledger_entries = wallet.transactions_ledger.all().order_by('-created_at')
+        transactions = []
+        for entry in ledger_entries:
+            transactions.append({
+                'id': entry.id,
+                'amount': float(entry.amount),
+                'type': 'Cộng tiền' if entry.transaction_type == 'earning' else 'Rút tiền',
+                'description': entry.description,
+                'date': entry.created_at.strftime('%Y-%m-%d %H:%M')
+            })
+
+        # Doanh thu tháng này
+        from django.utils import timezone
+        month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0)
+        monthly_earnings = wallet.transactions_ledger.filter(
+            transaction_type='earning', 
+            created_at__gte=month_start
+        ).aggregate(total=Sum('amount'))['total'] or 0
+
+        return Response({
+            'balance': float(wallet.balance),
+            'monthly_earnings': float(monthly_earnings),
+            'bank_info': {
+                'bank_name': wallet.bank_name,
+                'account_number': wallet.account_number,
+                'account_holder': wallet.account_holder,
+            },
+            'transactions': transactions
+        })
+
+    @action(detail=False, methods=['patch'])
+    def update_finance_data(self, request):
+        """Cập nhật thông tin ngân hàng của giảng viên."""
+        wallet, _ = InstructorWallet.objects.get_or_create(user=request.user)
+        
+        bank_name = request.data.get('bank_name')
+        account_number = request.data.get('account_number')
+        account_holder = request.data.get('account_holder')
+        
+        if bank_name: wallet.bank_name = bank_name
+        if account_number: wallet.account_number = account_number
+        if account_holder: wallet.account_holder = account_holder
+        
+        wallet.save()
+        return Response({
+            'bank_name': wallet.bank_name,
+            'account_number': wallet.account_number,
+            'account_holder': wallet.account_holder,
+        })
+
+    @action(detail=False, methods=['post'])
+    def request_withdrawal(self, request):
+        """Cho phép giảng viên gửi yêu cầu rút tiền."""
+        amount = request.data.get('amount')
+        if not amount:
+            return Response({'error': 'Vui lòng nhập số tiền'}, status=400)
+            
+        wallet = InstructorWallet.objects.get(user=request.user)
+        if float(amount) > float(wallet.balance):
+            return Response({'error': 'Số tiền vượt quá số dư'}, status=400)
+            
+        # Tạo yêu cầu rút tiền
+        WithdrawalRequest.objects.create(
+            user=request.user,
+            amount=amount,
+            status='pending'
+        )
+        
+        # Tạm thời trừ tiền trong ví (Logic thực tế có thể trừ sau khi admin duyệt)
+        wallet.balance -= Decimal(str(amount))
+        wallet.save()
+        
+        return Response({'message': 'Yêu cầu của bạn đã được gửi.'})
+
+    @action(detail=True, methods=['post'])
+    def send_announcement(self, request, pk=None):
+        """Cho phép giảng viên gửi thông báo cho 1 khóa học cụ thể."""
+        course = self.get_object()
+        title = request.data.get('title')
+        content = request.data.get('content')
+        
+        if not title or not content:
+            return Response({'error': 'Vui lòng nhập đầy đủ tiêu đề và nội dung'}, status=400)
+            
+        announcement = CourseAnnouncement.objects.create(
+            course=course,
+            title=title,
+            content=content
+        )
+        
+        return Response({'message': 'Thông báo đã được gửi đến học viên.'})

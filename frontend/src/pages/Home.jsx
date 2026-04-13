@@ -174,8 +174,13 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="course-body" style={{padding: '16px', flexGrow: 1, display: 'flex', flexDirection: 'column'}}>
-                      <p style={{fontSize: '12px', color: '#666', fontWeight: '600', marginBottom: '4px'}}>{instructorName}</p>
-                      <h3 style={{fontSize: '16px', fontWeight: '700', marginBottom: '8px', color: '#1f1f1f'}}>{fixText(course.title)}</h3>
+                      <p style={{fontSize: '12px', color: '#666', fontWeight: '600', marginBottom: '4px'}}>
+                        {course.faculty ? `${course.faculty} - ${instructorName}` : instructorName}
+                      </p>
+                      <h3 style={{fontSize: '16px', fontWeight: '700', marginBottom: '8px', color: '#1f1f1f'}}>
+                        {course.subject_code && <span style={{color: '#0056d2', marginRight: '6px'}}>[{course.subject_code}]</span>}
+                        {fixText(course.title)}
+                      </h3>
                       <p style={{fontSize: '13px', color: '#666', marginBottom: '16px'}}>{course.skills || 'AI, Phân tích dữ liệu, Code...'}</p>
                       
                       <div style={{marginTop: 'auto'}}>

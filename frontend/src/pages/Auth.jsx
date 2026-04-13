@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import usePageSEO from '../hooks/usePageSEO';
 import { useAuth } from '../context/AuthContext';
 
@@ -83,6 +83,17 @@ export default function Auth() {
               {isLogin ? 'Chưa có tài khoản? Đăng ký ngay' : 'Đã có tài khoản? Đăng nhập'}
             </button>
             {isLogin && <a href="#" className="crs-auth-forgot">Quên mật khẩu?</a>}
+            
+            {isLogin && (
+              <div style={{marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #f1f5f9', textAlign: 'center'}}>
+                <p style={{fontSize: '0.9rem', color: '#64748b', marginBottom: '10px'}}>Dành cho Đối tác</p>
+                <Link to="/instructor/login" style={{
+                  display: 'inline-block', padding: '8px 20px', borderRadius: '20px',
+                  border: '1px solid #0056d2', color: '#0056d2', fontWeight: 600,
+                  fontSize: '0.85rem', textDecoration: 'none'
+                }}>Đăng nhập Giảng viên</Link>
+              </div>
+            )}
           </form>
         </div>
       </div>

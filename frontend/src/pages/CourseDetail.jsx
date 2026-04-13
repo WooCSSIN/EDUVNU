@@ -142,19 +142,18 @@ export default function CourseDetail() {
   const originalPrice = parseFloat(course.original_price) || 0;
   const isDiscounted = originalPrice > price && price > 0;
 
-  /* Mock curriculum from skills */
-  const curriculum = skills.length > 0
-    ? [
-        { title: 'Giới thiệu & Tổng quan', duration: '3 giờ', lessons: ['Giới thiệu khóa học', 'Cài đặt môi trường', 'Tổng quan nội dung'] },
-        { title: `Kiến thức về ${skills[0] || 'Nền tảng'}`, duration: '8 giờ', lessons: skills.slice(0, 4).map(s => `Học về ${s}`) },
-        { title: 'Thực hành & Dự án', duration: '12 giờ', lessons: ['Bài tập thực hành', 'Dự án cuối khóa', 'Đánh giá & Chứng chỉ'] },
-      ]
+  /* Real curriculum from chapters */
+  const curriculum = (course.chapters || []).length > 0 
+    ? course.chapters.map(ch => ({
+        title: ch.title,
+        duration: `${ch.lessons?.length || 0} bài học`,
+        lessons: (ch.lessons || []).map(l => l.title)
+      }))
     : [
-        { title: 'Module 1: Giới thiệu', duration: '4 giờ', lessons: ['Bài 1: Tổng quan', 'Bài 2: Cài đặt', 'Bài 3: Bắt đầu'] },
-        { title: 'Module 2: Nội dung chính', duration: '10 giờ', lessons: ['Bài 4: Lý thuyết', 'Bài 5: Thực hành', 'Bài 6: Bài tập'] },
-        { title: 'Module 3: Nâng cao', duration: '8 giờ', lessons: ['Bài 7: Chuyên sâu', 'Bài 8: Dự án', 'Bài 9: Tổng kết'] },
+        { title: 'Nội dung đang được cập nhật', duration: '...', lessons: [] }
       ];
-  const totalLessons = curriculum.reduce((s, c) => s + c.lessons.length, 0);
+  
+  const totalLessons = (course.chapters || []).reduce((acc, ch) => acc + (ch.lessons?.length || 0), 0);
 
   const whatYouLearn = skills.length >= 4
     ? skills.slice(0, 8)
@@ -288,16 +287,17 @@ export default function CourseDetail() {
               <span style={{ color: '#ddd' }}>{title.length > 40 ? title.slice(0, 40) + '…' : title}</span>
             </nav>
 
-            {/* Partner badge */}
+            {/* Partner badge / VNU Faculty */}
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: 6, marginBottom: 16, fontSize: 13, color: '#e5e7eb' }}>
               <span style={{ width: 28, height: 28, background: GRADS[gradIdx], borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13 }}>
-                {org[0]?.toUpperCase()}
+                {(course.faculty || org)[0]?.toUpperCase()}
               </span>
-              {org}
+              {course.faculty || org}
             </div>
 
-            {/* Title */}
+            {/* Title / VNU Subject Code */}
             <h1 style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.25, marginBottom: 16, color: '#fff', maxWidth: 680 }}>
+              {course.subject_code && <span style={{color: '#60a5fa', marginRight: '8px'}}>[{course.subject_code}]</span>}
               {title}
             </h1>
 
@@ -509,6 +509,15 @@ export default function CourseDetail() {
                           )}
                         </li>
                       ))}
+                      {course.chapters?.[mi]?.quiz && (
+                        <li style={{ padding: '12px 15px', marginTop: '5px', background: '#f0f9ff', borderRadius: '8px', border: '1px dashed #0056d2', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{fontSize: '1.2rem'}}>📝</span>
+                          <div style={{flex: 1}}>
+                            <div style={{fontWeight: 700, fontSize: '13px', color: '#0369a1'}}>Bài kiểm tra: {course.chapters[mi].quiz.title}</div>
+                            <div style={{fontSize: '11px', color: '#64748b'}}>{course.chapters[mi].quiz.questions?.length || 0} câu hỏi trắc nghiệm</div>
+                          </div>
+                        </li>
+                      )}
                     </ul>
                   )}
                 </div>
