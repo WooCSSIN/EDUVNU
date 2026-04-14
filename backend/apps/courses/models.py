@@ -7,6 +7,7 @@ class Category(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField()
     is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, help_text="Giảng viên tạo danh mục này (theo SRS)")
 
     def __str__(self):
         return self.name
@@ -26,6 +27,12 @@ class Course(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='courses')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     rejection_reason = models.TextField(null=True, blank=True)
+    
+    # --- THỜI GIAN VÀ TRẠNG THÁI (SRS ĐẶC TẢ) ---
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    visibility_status = models.CharField(max_length=20, choices=[('Public', 'Public'), ('Private', 'Private')], default='Public')
+    # ---------------------------------------------
     
     # --- CÁC TRƯỜNG MỚI ĐỂ PHÙ HỢP VỚI DATASET VÀ PHONG CÁCH UDEMY ---
     level = models.CharField(max_length=50, null=True, blank=True) # Beginner, Intermediate...
@@ -90,12 +97,14 @@ class Choice(models.Model):
 class QuizAttempt(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
-    score = models.FloatField()
+    score = models.FloatField(default=0.0)
     passed = models.BooleanField(default=False)
+    draft_answers = models.JSONField(null=True, blank=True, help_text="Lưu URL JSON mảng ID các answer đã chọn tạm thời.")
+    is_submitted = models.BooleanField(default=True, help_text="Bài làm đã nộp hay mới lưu nháp")
     attempted_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.quiz.title} - {self.score}%"
+        return f"{self.user.username} - {self.quiz.title} - {'Submitted' if self.is_submitted else 'Draft'}"
 
 class Lesson(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='lessons')
@@ -103,6 +112,7 @@ class Lesson(models.Model):
     title = models.CharField(max_length=255)
     order_number = models.PositiveIntegerField(default=1)
     video_url = models.URLField(max_length=255, null=True, blank=True)
+    document_file = models.FileField(upload_to='lessons/documents/', null=True, blank=True, help_text="Tài liệu đính kèm (PDF/Slide)")
     content = models.TextField()
     is_active = models.BooleanField(default=True)
 
@@ -111,6 +121,16 @@ class Lesson(models.Model):
 
     def __str__(self):
         return f"{self.course.title} - {self.title}"
+
+class LessonComment(models.Model):
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.lesson.title}"
 
 class Enrollment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='enrollments')
@@ -235,3 +255,32 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"Notif for {self.user.username}: {self.title}"
+
+class News(models.Model):
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    image = models.ImageField(upload_to='news/', null=True, blank=True)
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    is_published = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title
+
+class FAQ(models.Model):
+    question = models.CharField(max_length=255)
+    answer = models.TextField()
+    order = models.PositiveIntegerField(default=1)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return self.question
+

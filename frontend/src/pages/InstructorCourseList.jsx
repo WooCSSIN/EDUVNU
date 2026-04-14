@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import InstructorSidebar from '../components/InstructorSidebar';
@@ -11,7 +11,7 @@ const InstructorCourseList = () => {
     const [activeCourse, setActiveCourse] = useState(null);
     const [annMsg, setAnnMsg] = useState({ title: '', content: '' });
 
-    const fetchCourses = async () => {
+    async function fetchCourses() {
         try {
             const res = await api.get('/courses/instructor-courses/');
             setCourses(res.data.results || res.data);
@@ -23,6 +23,7 @@ const InstructorCourseList = () => {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchCourses();
     }, []);
 
@@ -32,6 +33,7 @@ const InstructorCourseList = () => {
             await api.post(`/courses/instructor-courses/${courseId}/submit_review/`);
             alert('Đã gửi yêu cầu phê duyệt thành công!');
             fetchCourses();
+        // eslint-disable-next-line no-unused-vars
         } catch (error) {
             alert('Lỗi: Không thể gửi yêu cầu.');
         }

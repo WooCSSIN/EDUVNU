@@ -137,6 +137,20 @@ class QuizViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     @action(detail=True, methods=['post'])
+    def save_draft(self, request, pk=None):
+        """Lưu tạm đáp án chưa nộp."""
+        quiz = self.get_object()
+        answers = request.data.get('answers', [])
+        
+        attempt, _ = QuizAttempt.objects.update_or_create(
+            user=request.user,
+            quiz=quiz,
+            is_submitted=False,
+            defaults={'draft_answers': answers}
+        )
+        return Response({'message': 'Đã lưu nháp thành công', 'draft_id': attempt.id})
+
+    @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
         """Chấm điểm bài trắc nghiệm tự động."""
         quiz = self.get_object()
@@ -175,12 +189,19 @@ class QuizViewSet(viewsets.ModelViewSet):
         score_percent = (correct_count / total_questions) * 100
         passed = score_percent >= quiz.passing_score
         
-        # Lưu lịch sử làm bài
-        QuizAttempt.objects.create(
+        # Cập nhật hoặc tạo mới bản ghi attempt đã nộp
+        attempt_obj = dict(
+            score=score_percent,
+            passed=passed,
+            is_submitted=True,
+            draft_answers=answers # Lưu lại snapshot cuối
+        )
+        # Nếu có bản nháp thì cập nhật nó thành `is_submitted=True`, hoặc tạo mới nếu chưa có
+        QuizAttempt.objects.update_or_create(
             user=request.user,
             quiz=quiz,
-            score=score_percent,
-            passed=passed
+            is_submitted=False,
+            defaults=attempt_obj
         )
         
         return Response({
@@ -211,9 +232,35 @@ from reportlab.lib.utils import ImageReader
 import qrcode
 from io import BytesIO
 
-class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.filter(is_active=True)
     serializer_class = CategorySerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def perform_create(self, serializer):
+        if self.request.user.is_instructor or self.request.user.is_staff:
+            serializer.save(created_by=self.request.user)
+        else:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Chỉ giảng viên hoặc Admin mới có quyền tạo danh mục.")
+
+    def perform_update(self, serializer):
+        category = self.get_object()
+        if self.request.user.is_staff or category.created_by == self.request.user:
+            serializer.save()
+        else:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Bạn không có quyền sửa danh mục này.")
+
+    def perform_destroy(self, instance):
+        if self.request.user.is_staff or instance.created_by == self.request.user:
+            if instance.courses.exists():
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError("Không thể xóa danh mục đã có khóa học.")
+            instance.delete()
+        else:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Bạn không có quyền xóa danh mục này.")
 
     def list(self, request, *args, **kwargs):
         # SQL-level filter: dùng Exists subquery thay vì load toàn bộ data lên Python
@@ -229,19 +276,30 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class CourseViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Course.objects.filter(is_active=True)
+    queryset = Course.objects.filter(is_active=True, status='published')
     serializer_class = CourseSerializer
 
     def get_queryset(self):
-        qs = Course.objects.filter(is_active=True)
+        qs = Course.objects.filter(is_active=True, status='published')
         q = self.request.query_params.get('q', '').strip()
         category_id = self.request.query_params.get('category', '')
         ordering_param = self.request.query_params.get('ordering', '')
+        
+        # --- BỘ LỌC SRS ---
+        start_date = self.request.query_params.get('start_date', '')
+        end_date = self.request.query_params.get('end_date', '')
+        visibility_status = self.request.query_params.get('visibility_status', '')
         
         if q:
             qs = qs.filter(Q(title__icontains=q) | Q(description__icontains=q))
         if category_id:
             qs = qs.filter(category_id=category_id)
+        if start_date:
+            qs = qs.filter(start_date__gte=start_date)
+        if end_date:
+            qs = qs.filter(end_date__lte=end_date)
+        if visibility_status:
+            qs = qs.filter(visibility_status__iexact=visibility_status)
             
         if ordering_param:
             qs = qs.order_by(ordering_param)
@@ -267,6 +325,29 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = EnrollmentSerializer(enrollments, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def join_free(self, request, pk=None):
+        """Đăng ký khóa học miễn phí (Bỏ qua giỏ hàng)."""
+        course = self.get_object()
+        
+        if not request.user.is_active:
+            return Response({'error': 'Tài khoản của bạn đang bị khóa, không thể đăng ký khóa học.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        if course.price > 0:
+            return Response({'error': 'Khóa học này có phí, vui lòng thanh toán qua giỏ hàng.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        enrollment, created = Enrollment.objects.get_or_create(user=request.user, course=course)
+        if created:
+            Notification.objects.create(
+                user=request.user,
+                title="Đăng ký thành công",
+                message=f"Bạn đã đăng ký thành công khóa học miễn phí '{course.title}'.",
+                link=f"/learn/{course.id}"
+            )
+            return Response({'message': 'Đăng ký thành công!'}, status=status.HTTP_201_CREATED)
+            
+        return Response({'message': 'Bạn đã đăng ký khóa học này rồi.'}, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def my_schedule(self, request):
         """Lịch học: trả về enrollments kèm tiến độ từng khóa."""
@@ -291,6 +372,12 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
     def lessons(self, request, pk=None):
         """Lấy lessons của course — chỉ cho user đã enrolled."""
         course = self.get_object()
+        
+        # KIỂM TRA THỜI GIAN KHAI GIẢNG THEO SRS
+        from django.utils import timezone
+        if course.start_date and timezone.now().date() < course.start_date:
+            return Response({'error': f'Khóa học này sẽ bắt đầu vào ngày {course.start_date.strftime("%d/%m/%Y")}. Vui lòng quay lại sau.'}, status=status.HTTP_403_FORBIDDEN)
+
         if not Enrollment.objects.filter(user=request.user, course=course).exists():
             return Response({'error': 'Bạn chưa đăng ký khóa học này.'}, status=status.HTTP_403_FORBIDDEN)
         lessons = Lesson.objects.filter(course=course, is_active=True)
@@ -391,6 +478,28 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
 class LessonViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Lesson.objects.filter(is_active=True)
     serializer_class = LessonSerializer
+
+    @action(detail=True, methods=['get'])
+    def comments(self, request, pk=None):
+        """Lấy danh sách bình luận của bài giảng này."""
+        lesson = self.get_object()
+        comments = lesson.comments.all().order_by('-created_at')
+        from .serializers import LessonCommentSerializer
+        return Response(LessonCommentSerializer(comments, many=True).data)
+
+class LessonCommentViewSet(viewsets.ModelViewSet):
+    """Quản lý bình luận, thảo luận trong từng bài giảng."""
+    from .models import LessonComment
+    from .serializers import LessonCommentSerializer
+    queryset = LessonComment.objects.all()
+    serializer_class = LessonCommentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        lesson_id = self.request.data.get('lesson')
+        lesson = Lesson.objects.get(id=lesson_id)
+        serializer.save(user=self.request.user, lesson=lesson)
+
 
 
 class UserProgressViewSet(viewsets.GenericViewSet):
@@ -732,3 +841,31 @@ class InstructorCourseViewSet(viewsets.ModelViewSet):
         )
         
         return Response({'message': 'Thông báo đã được gửi đến học viên.'})
+
+class NewsViewSet(viewsets.ModelViewSet):
+    from .models import News
+    from .serializers import NewsSerializer
+    queryset = News.objects.filter(is_published=True)
+    serializer_class = NewsSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def perform_create(self, serializer):
+        if self.request.user.is_staff:
+            serializer.save(author=self.request.user)
+        else:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Chỉ Admin mới có quyền thêm tin tức.")
+
+class FAQViewSet(viewsets.ModelViewSet):
+    from .models import FAQ
+    from .serializers import FAQSerializer
+    queryset = FAQ.objects.filter(is_active=True)
+    serializer_class = FAQSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Chỉ Admin mới có quyền thêm FAQ.")
+        serializer.save()
+

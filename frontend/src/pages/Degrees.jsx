@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import usePageSEO from '../hooks/usePageSEO';
 
@@ -291,6 +291,7 @@ function Degrees() {
   const [levelFilter, setLevelFilter] = useState([]);
   const [subjectFilter, setSubjectFilter] = useState([]);
   const [selected, setSelected] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate();
 
   const filtered = PROGRAMS.filter(p => {

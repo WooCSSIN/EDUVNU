@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +21,7 @@ const InstructorLogin = () => {
         setError('');
         try {
             const response = await api.post('/accounts/token/', credentials);
+            // eslint-disable-next-line no-unused-vars
             const { access, refresh, user_id, is_instructor } = response.data;
             
             if (!is_instructor) {
@@ -36,6 +37,7 @@ const InstructorLogin = () => {
             await login(credentials.username, credentials.password);
             
             navigate('/instructor');
+        // eslint-disable-next-line no-unused-vars
         } catch (err) {
             setError('Tên đăng nhập hoặc mật khẩu không chính xác.');
             setLoading(false);

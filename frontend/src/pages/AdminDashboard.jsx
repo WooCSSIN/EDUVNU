@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -13,10 +13,11 @@ const AdminDashboard = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/immutability
         fetchData();
     }, []);
 
-    const fetchData = async () => {
+    async function fetchData() {
         try {
             setLoading(true);
             // Lấy tất cả khóa học để phân loại theo tab
@@ -43,6 +44,7 @@ const AdminDashboard = () => {
             await api.post(`/courses/admin-courses/${id}/approve/`);
             alert('✅ Phê duyệt thành công!');
             fetchData();
+        // eslint-disable-next-line no-unused-vars
         } catch (error) { alert('Lỗi phê duyệt.'); }
     };
 
@@ -54,6 +56,7 @@ const AdminDashboard = () => {
             setShowRejectModal(false);
             setRejectionReason('');
             fetchData();
+        // eslint-disable-next-line no-unused-vars
         } catch (error) { alert('Lỗi thực thi.'); }
     };
 

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+// eslint-disable-next-line no-unused-vars
 import { fixText, parseMetadata } from '../utils/fixEncoding';
 import { getCourseThumbnail } from '../utils/courseImages';
 import { Loading, SkeletonCard } from '../components/LoadingUI';
@@ -39,9 +40,10 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => fetchCourses(), 400);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, activeCategory, ordering]);
 
-  const fetchCourses = async () => {
+  async function fetchCourses() {
     setLoading(true);
     try {
       const params = new URLSearchParams();

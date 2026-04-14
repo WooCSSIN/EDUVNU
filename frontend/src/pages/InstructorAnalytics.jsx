@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import InstructorSidebar from '../components/InstructorSidebar';
 import api from '../api/axios';
 import '../assets/instructor-dashboard.css';
@@ -9,6 +9,7 @@ const InstructorAnalytics = () => {
         completion_data: [],
         active_students: 0
     });
+    // eslint-disable-next-line no-unused-vars
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {

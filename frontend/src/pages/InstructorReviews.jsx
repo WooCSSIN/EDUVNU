@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import InstructorSidebar from '../components/InstructorSidebar';
@@ -9,7 +9,7 @@ const InstructorReviews = () => {
     const [loading, setLoading] = useState(true);
     const [replyMap, setReplyMap] = useState({});
 
-    const fetchReviews = async () => {
+    async function fetchReviews() {
         try {
             const res = await api.get('/courses/instructor-courses/my_reviews/');
             setReviews(res.data);
@@ -21,6 +21,7 @@ const InstructorReviews = () => {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchReviews();
     }, []);
 

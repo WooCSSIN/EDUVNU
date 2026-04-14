@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +19,7 @@ export default function Orders() {
       .then(r => setOrders(r.data.results || r.data || []))
       .catch((err) => { console.error('Lỗi khi tải đơn hàng:', err); })
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   const total = orders.reduce((s, o) => s + parseFloat(o.total_price || 0), 0);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import InstructorSidebar from '../components/InstructorSidebar';
 import api from '../api/axios';
 import '../assets/instructor-dashboard.css';
@@ -9,6 +9,7 @@ const InstructorFinance = () => {
         bank_info: {},
         transactions: []
     });
+    // eslint-disable-next-line no-unused-vars
     const [loading, setLoading] = useState(true);
     const [withdrawAmount, setWithdrawAmount] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -43,6 +44,7 @@ const InstructorFinance = () => {
             alert('Yêu cầu rút tiền đã được gửi thành công! Admin sẽ xử lý trong vòng 24h.');
             setWithdrawAmount('');
             fetchFinance(); // Refresh balance
+        // eslint-disable-next-line no-unused-vars
         } catch (error) {
             alert('Có lỗi xảy ra khi gửi yêu cầu.');
         } finally {

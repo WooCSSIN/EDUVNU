@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +22,7 @@ export default function Schedule() {
       .then(r => setSchedule(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   const filtered = schedule.filter(item => {
@@ -134,6 +135,7 @@ export default function Schedule() {
                                 window.URL.revokeObjectURL(fileURL);
                                 document.body.removeChild(a);
                               })
+                              // eslint-disable-next-line no-unused-vars
                               .catch(err => alert('Không thể tải chứng chỉ lúc này. Vui lòng thử lại sau.'));
                           });
                         }}

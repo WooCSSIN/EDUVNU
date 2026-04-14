@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import (
     Category, Course, Lesson, Enrollment, UserProgress, Review, ContactMessage,
-    Chapter, Quiz, Question, Choice, Notification
+    Chapter, Quiz, Question, Choice, Notification, LessonComment, QuizAttempt,
+    News, FAQ
 )
 from accounts.models import User
 
@@ -21,7 +22,18 @@ class CategorySerializer(serializers.ModelSerializer):
 class LessonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson
-        fields = ['id', 'title', 'order_number', 'video_url', 'content', 'course']
+        fields = ['id', 'title', 'order_number', 'video_url', 'document_file', 'content', 'course']
+
+class LessonCommentSerializer(serializers.ModelSerializer):
+    user = InstructorSerializer(read_only=True)
+    class Meta:
+        model = LessonComment
+        fields = ['id', 'user', 'content', 'created_at']
+
+class QuizAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuizAttempt
+        fields = ['id', 'quiz', 'score', 'passed', 'draft_answers', 'is_submitted', 'attempted_at']
 
 
 class ChoiceSerializer(serializers.ModelSerializer):
@@ -109,4 +121,16 @@ class ReviewSerializer(serializers.ModelSerializer):
 class ContactMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactMessage
+        fields = '__all__'
+
+class NewsSerializer(serializers.ModelSerializer):
+    author_name = serializers.StringRelatedField(source='author', read_only=True)
+    
+    class Meta:
+        model = News
+        fields = '__all__'
+
+class FAQSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FAQ
         fields = '__all__'

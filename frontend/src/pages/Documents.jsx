@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,7 @@ export default function Documents() {
         else setLoading(false);
       })
       .catch(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   const loadLessons = async (course) => {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import api from '../api/axios';
 import usePageSEO from '../hooks/usePageSEO';
 
@@ -18,6 +18,7 @@ export default function Contact() {
       await api.post('/courses/contact/', formData);
       setStatus({ loading: false, message: '🎉 Cảm ơn bạn! Lời nhắn đã được gửi thành công.', type: 'success' });
       setFormData({ name: '', email: '', subject: '', message: '' });
+    // eslint-disable-next-line no-unused-vars
     } catch (error) {
       setStatus({ loading: false, message: '❌ Có lỗi xảy ra, vui lòng thử lại sau.', type: 'error' });
     }

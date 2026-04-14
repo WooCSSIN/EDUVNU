@@ -39,6 +39,9 @@ class OrderViewSet(viewsets.ModelViewSet):
     # =========================================================
     @action(detail=False, methods=['post'])
     def checkout(self, request):
+        if not request.user.is_active:
+            return Response({'error': 'Tài khoản của bạn đang bị khóa, không thể thanh toán.'}, status=status.HTTP_403_FORBIDDEN)
+            
         try:
             cart, _ = Cart.objects.get_or_create(user=request.user)
             items = CartItem.objects.filter(cart=cart).select_related('course')

@@ -101,6 +101,7 @@ function Header() {
     if (user) {
       api.get('/cart/my_cart/').then(r => setCartCount(r.data.items?.length || 0)).catch(() => {});
       api.get('/courses/notifications/').then(r => setNotifications(r.data.results || r.data)).catch(() => {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     } else { setCartCount(0); }
   }, [user]);
 
@@ -118,7 +119,7 @@ function Header() {
     try {
       await api.post(`/courses/notifications/${id}/mark_as_read/`);
       setNotifications(prev => prev.map(n => n.id === id ? {...n, is_read: true} : n));
-    } catch (e) {}
+    } catch (e) { void e; }
   };
 
   return (

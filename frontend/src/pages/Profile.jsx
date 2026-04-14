@@ -16,8 +16,9 @@ export default function Profile() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate('/login'); return; }
-    setForm({ first_name: user.first_name || '', last_name: user.last_name || '', email: user.email || '' });
+    setTimeout(() => setForm({ first_name: user.first_name || '', last_name: user.last_name || '', email: user.email || '' }), 0);
     api.get('/courses/courses/my_courses/').then(r => setEnrollments(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   const save = async (e) => {

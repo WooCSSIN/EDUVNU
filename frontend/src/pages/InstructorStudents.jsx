@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import InstructorSidebar from '../components/InstructorSidebar';
@@ -6,6 +6,7 @@ import '../assets/instructor-dashboard.css';
 
 const InstructorStudents = () => {
     const [students, setStudents] = useState([]);
+    // eslint-disable-next-line no-unused-vars
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {

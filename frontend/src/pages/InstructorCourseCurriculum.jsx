@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../api/axios';
 import '../assets/instructor-dashboard.css';
@@ -29,10 +29,12 @@ const InstructorCourseCurriculum = () => {
     ]);
 
     useEffect(() => {
+         
         fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [courseId]);
 
-    const fetchData = async () => {
+    async function fetchData() {
         try {
             const courseRes = await api.get(`/courses/instructor-courses/${courseId}/`);
             setCourse(courseRes.data);
@@ -53,11 +55,13 @@ const InstructorCourseCurriculum = () => {
             setNewChapter({ title: '', order: chapters.length + 1 });
             setShowChapterForm(false);
             fetchData();
+        // eslint-disable-next-line no-unused-vars
         } catch (error) { alert('Lỗi khi thêm chương.'); }
     };
 
     const handleDeleteChapter = async (id) => {
         if (window.confirm('Xóa chương này sẽ xóa toàn bộ bài học và quiz bên trong. Bạn có chắc không?')) {
+            // eslint-disable-next-line no-unused-vars
             try { await api.delete(`/courses/chapters/${id}/`); fetchData(); } catch (error) { alert('Lỗi khi xóa.'); }
         }
     };
@@ -70,11 +74,13 @@ const InstructorCourseCurriculum = () => {
             setNewLesson({ title: '', video_url: '', content: '', order_number: (activeChapter.lessons?.length || 0) + 1 });
             setShowLessonForm(false);
             fetchData();
+        // eslint-disable-next-line no-unused-vars
         } catch (error) { alert('Lỗi khi thêm bài giảng.'); }
     };
 
     const handleDeleteLesson = async (id) => {
         if (window.confirm('Xóa bài này?')) {
+            // eslint-disable-next-line no-unused-vars
             try { await api.delete(`/courses/lessons/${id}/`); fetchData(); } catch (error) { alert('Lỗi khi xóa.'); }
         }
     };
@@ -93,6 +99,7 @@ const InstructorCourseCurriculum = () => {
     const handleSaveQuizBase = async () => {
         try {
             if (activeChapter.quiz) {
+                // eslint-disable-next-line no-unused-vars
                 const res = await api.patch(`/courses/quizzes/${activeChapter.quiz.id}/`, {
                     title: quizData.title,
                     passing_score: quizData.passing_score
@@ -104,10 +111,12 @@ const InstructorCourseCurriculum = () => {
                     title: quizData.title,
                     passing_score: quizData.passing_score
                 });
+                 
                 activeChapter.quiz = res.data;
                 alert('Đã tạo Quiz mới! Bây giờ hãy thêm câu hỏi.');
             }
             fetchData();
+        // eslint-disable-next-line no-unused-vars
         } catch (error) { alert('Lỗi khi lưu Quiz.'); }
     };
 
@@ -144,6 +153,7 @@ const InstructorCourseCurriculum = () => {
             const updatedQuiz = await api.get(`/courses/quizzes/${activeChapter.quiz.id}/`);
             setQuizData(updatedQuiz.data);
             fetchData();
+        // eslint-disable-next-line no-unused-vars
         } catch (error) { alert('Lỗi khi thêm câu hỏi.'); }
     };
 

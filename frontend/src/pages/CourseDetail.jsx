@@ -55,6 +55,7 @@ export default function CourseDetail() {
   });
 
   /* Load course data */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadCourse(); }, [courseId]);
 
   /* Sticky nav scroll watcher */
@@ -104,6 +105,25 @@ export default function CourseDetail() {
       showToast('✅ Đã thêm vào giỏ hàng!');
     } catch (err) {
       showToast(err.response?.data?.message || err.response?.data?.error || 'Không thể thêm vào giỏ hàng.');
+    } finally { setAddingCart(false); }
+  };
+
+  // Fix #5: Đăng ký khóa học miễn phí trực tiếp, bỏ qua giỏ hàng
+  const joinFree = async () => {
+    if (!user) { navigate('/login'); return; }
+    setAddingCart(true);
+    try {
+      await api.post(`/courses/courses/${courseId}/join_free/`);
+      setIsEnrolled(true);
+      showToast('✅ Đăng ký thành công! Chúc bạn học tập hiệu quả.');
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || '';
+      if (err.response?.status === 200 || msg.includes('đã đăng ký')) {
+        setIsEnrolled(true);
+        showToast('ℹ️ Bạn đã đăng ký khóa học này rồi.');
+      } else {
+        showToast(msg || 'Không thể đăng ký. Vui lòng thử lại.');
+      }
     } finally { setAddingCart(false); }
   };
 
@@ -222,10 +242,10 @@ export default function CourseDetail() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
-              onClick={price === 0 ? () => setShowTrialModal(true) : addToCart}
+              onClick={price === 0 ? joinFree : addToCart}
               disabled={addingCart}
               style={{ width: '100%', padding: compact ? '10px 0' : '14px 0', background: addingCart ? '#93c5fd' : '#0056D2', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: addingCart ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>
-              {addingCart ? 'Đang thêm...' : price === 0 ? 'Đăng ký miễn phí' : 'Thêm vào giỏ hàng'}
+              {addingCart ? 'Đang xử lý...' : price === 0 ? 'Đăng ký miễn phí' : 'Thêm vào giỏ hàng'}
             </button>
             {price > 0 && !compact && (
               <button
@@ -374,7 +394,7 @@ export default function CourseDetail() {
           {/* Compact enroll CTA (shows on scroll) */}
           {stickyVisible && !isEnrolled && (
             <button
-              onClick={price === 0 ? () => setShowTrialModal(true) : addToCart}
+              onClick={price === 0 ? joinFree : addToCart}
               style={{ padding: '9px 20px', background: '#0056D2', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
               {price === 0 ? 'Đăng ký miễn phí' : 'Thêm vào giỏ hàng'}
             </button>

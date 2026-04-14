@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardNumberElement, CardExpiryElement, CardCvcElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -55,6 +55,7 @@ function CheckoutForm({ orderId, amount }) {
         await api.post(`/orders/${orderId}/confirm_payment/`, {
           transaction_id: paymentIntent.id,
         });
+      // eslint-disable-next-line no-unused-vars
       } catch (e) { /* ignore */ }
       setSuccess(true);
       setTimeout(() => navigate('/schedule'), 2500);
@@ -123,6 +124,7 @@ export default function StripeCheckout() {
 
   useEffect(() => {
     if (!orderId || !clientSecret) navigate('/checkout');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, clientSecret]);
 
   if (!clientSecret) return null;

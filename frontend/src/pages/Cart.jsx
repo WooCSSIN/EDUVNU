@@ -19,6 +19,7 @@ export default function Cart() {
   usePageSEO({ title: 'Giỏ hàng', description: 'Xem và quản lý giỏ hàng khóa học của bạn tại EduVNU. Thanh toán an toàn, bảo mật SSL.' });
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState(null);
   const [tab, setTab] = useState('cart');
@@ -32,6 +33,7 @@ export default function Cart() {
     if (authLoading) return;
     if (!user) { navigate('/login'); return; }
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   useEffect(() => {
@@ -41,12 +43,18 @@ export default function Cart() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [cartRes, orderRes] = await Promise.all([
+      const [cartRes, orderRes, enrollRes] = await Promise.all([
         api.get('/cart/my_cart/').catch(() => ({ data: { items: [] } })),
         api.get('/orders/').catch(() => ({ data: [] })),
+        api.get('/courses/courses/my_courses/').catch(() => ({ data: [] })),
       ]);
       setItems(cartRes.data.items || []);
       setOrders(orderRes.data.results || orderRes.data || []);
+      // Fix #4: Build Set các course ID đã đăng ký
+      const enrolled = new Set(
+        (enrollRes.data || []).map(e => e.course?.id ?? e.course)
+      );
+      setEnrolledCourseIds(enrolled);
     } catch (err) {
       console.error('Cart load error:', err);
     } finally {
@@ -70,6 +78,8 @@ export default function Cart() {
   const subtotal = items.reduce((s, i) => s + parseFloat(i.course?.price || 0), 0);
   const discount = 0;
   const total = subtotal - discount;
+  // Fix #4: Kiểm tra xem có khóa học nào trong giỏ đã đăng ký chưa
+  const hasDuplicateEnrollment = items.some(i => enrolledCourseIds.has(i.course?.id));
 
   if (loading) return <Loading message="Đang tải giỏ hàng..." />;
 
@@ -109,13 +119,20 @@ export default function Cart() {
             {/* LEFT: Cart Items */}
             <div className="crs-cart-items">
               {items.map((item, idx) => (
-                <div key={item.id} className="crs-cart-item">
+                <div key={item.id} className="crs-cart-item" style={enrolledCourseIds.has(item.course?.id) ? {border: '1.5px solid #f59e0b', background: '#fffbeb'} : {}}>
                   <div className="crs-cart-thumb" style={{background: GRADS[idx % GRADS.length]}}>
                     {fixText(item.course?.title)?.[0] || '?'}
                   </div>
                   <div className="crs-cart-info">
                     <div className="crs-cart-title">{fixText(item.course?.title)}</div>
                     <div className="crs-cart-org">{item.course?.partner_name || 'EduVNU Partner'}</div>
+                    {enrolledCourseIds.has(item.course?.id) && (
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                        <span style={{background:'#f59e0b',color:'#fff',fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4}}>
+                          ⚠️ Bạn đã học khóa học này
+                        </span>
+                      </div>
+                    )}
                     <div style={{display:'flex',gap:6,marginBottom:4}}>
                       <span className="badge">Bestseller</span>
                       <span style={{fontSize:12,color:'var(--muted)'}}>⭐ 4.7 (2,340 đánh giá)</span>
@@ -171,7 +188,18 @@ export default function Cart() {
                   <span className="crs-summary-total-price">{total.toLocaleString('vi-VN')} ₫</span>
                 </div>
 
-                <button className="crs-checkout-btn" onClick={()=>navigate('/checkout')}>
+                {/* Fix #4: Cảnh báo nếu có khóa học đã đăng ký trong giỏ */}
+                {hasDuplicateEnrollment && (
+                  <div style={{background:'#fffbeb',border:'1.5px solid #f59e0b',borderRadius:8,padding:'12px 16px',marginBottom:12,fontSize:13,color:'#92400e',display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:18}}>⚠️</span>
+                    <span>Giỏ hàng có khóa học bạn đã đăng ký. Hãy xóa chúng trước khi thanh toán.</span>
+                  </div>
+                )}
+                <button
+                  className="crs-checkout-btn"
+                  onClick={() => navigate('/checkout')}
+                  disabled={hasDuplicateEnrollment}
+                  style={hasDuplicateEnrollment ? {opacity:0.5,cursor:'not-allowed'} : {}}>
                   Thanh toán ngay
                 </button>
 
@@ -214,7 +242,7 @@ export default function Cart() {
           </div>
         ) : (
           <div className="crs-orders-list" style={{marginTop:4}}>
-            {orders.map((order, idx) => {
+            {orders.map((order) => {
               const isPaid = order.status === 'paid';
               const isExpanded = expandedOrder === order.id;
               return (

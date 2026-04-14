@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+﻿import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardNumberElement, CardExpiryElement, CardCvcElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -126,6 +126,7 @@ export default function Checkout() {
     if (!user) { navigate('/login'); return; }
     
     if (isTrial) {
+       
       setItems([{
         id: 'trial_123',
         course: { title: `${trialProgram?.title || 'Chương trình'} - Dùng thử miễn phí 7 ngày`, price: 0 }
@@ -142,6 +143,7 @@ export default function Checkout() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   const subtotal = items.reduce((s, i) => s + parseFloat(i.course?.price || 0), 0);

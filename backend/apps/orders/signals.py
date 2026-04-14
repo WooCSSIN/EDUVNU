@@ -1,37 +1,55 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import Order, OrderItem
-from courses.models import InstructorWallet, WalletTransaction
+from courses.models import InstructorWallet, WalletTransaction, Enrollment, Notification
 from decimal import Decimal
 
 @receiver(post_save, sender=Order)
 def handle_payment_success(sender, instance, **kwargs):
-    # LOGIC: Chỉ xử lý khi đơn hàng vừa được thanh toán xong
-    if instance.status == 'paid':
-        items = OrderItem.objects.filter(order=instance)
-        
-        for item in items:
-            instructor = item.course.instructor
-            if not instructor:
-                continue
-                
-            # 1. Lấy hoặc tạo ví cho giảng viên
+    """Xử lý toàn bộ hệ quả khi đơn hàng chuyển sang trạng thái 'paid'."""
+    if instance.status != 'paid':
+        return
+
+    items = OrderItem.objects.filter(order=instance).select_related('course__instructor')
+    course_titles = []
+
+    for item in items:
+        course = item.course
+        instructor = course.instructor
+
+        # ── 1. Tạo Enrollment cho học viên (idempotent) ──────────────────
+        Enrollment.objects.get_or_create(
+            user=instance.user,
+            course=course,
+        )
+
+        # ── 2. Ghi sổ cái doanh thu cho giảng viên ───────────────────────
+        if instructor:
             wallet, _ = InstructorWallet.objects.get_or_create(user=instructor)
-            
-            # 2. Kiểm tra xem giao dịch này đã được ghi sổ chưa (Tránh cộng tiền 2 lần)
             if not WalletTransaction.objects.filter(order_item=item).exists():
                 amount_earned = item.price * Decimal('0.70')
-                
-                # 3. Tạo dòng giao dịch trong Sổ cái
                 WalletTransaction.objects.create(
                     wallet=wallet,
                     amount=amount_earned,
                     transaction_type='earning',
-                    description=f"Thu nhập từ học viên {instance.user.username} mua khóa {item.course.title}",
+                    description=f"Thu nhập từ học viên {instance.user.username} mua khóa '{course.title}'",
                     order_item=item
                 )
-                
-                # 4. Cập nhật số dư cuối cùng trong ví
                 wallet.balance += amount_earned
                 wallet.save()
-                print(f">>> Da cong {amount_earned} VND vao vi cua {instructor.username}")
+
+        course_titles.append(f"'{course.title}'")
+
+    # ── 3. Fix #3: Gửi thông báo cho học viên (người mua) ────────────────
+    if course_titles:
+        titles_str = ", ".join(course_titles)
+        Notification.objects.create(
+            user=instance.user,
+            title="🎉 Thanh toán thành công!",
+            message=(
+                f"Đơn hàng #{instance.id} đã được xác nhận. "
+                f"Bạn đã mở khóa khóa học: {titles_str}. "
+                f"Chúc bạn học tập hiệu quả!"
+            ),
+            link=f"/cart",
+        )

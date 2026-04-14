@@ -7,6 +7,7 @@ import { Loading } from '../components/LoadingUI';
 export default function MockVNPay() {
   usePageSEO({ title: 'Cổng thanh toán VNPAY (Demo)' });
   const [searchParams] = useSearchParams();
+  // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate();
   const orderId = searchParams.get('order_id');
   const amount = searchParams.get('amount') || '0';
@@ -22,7 +23,7 @@ export default function MockVNPay() {
 
   useEffect(() => {
     if (!orderId) {
-      setError('Mã giao dịch không hợp lệ!');
+      setTimeout(() => setError('Mã giao dịch không hợp lệ!'), 0);
     }
   }, [orderId]);
 

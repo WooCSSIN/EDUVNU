@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -19,7 +19,12 @@ export default function Learn() {
   const [loading, setLoading] = useState(true);
   const [errorStatus, setErrorStatus] = useState(null);
   const [markingDone, setMarkingDone] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Heartbeat: đếm giây đã xem của bài học hiện tại
+  const heartbeatSecondsRef = useRef(0);
+  const heartbeatIntervalRef = useRef(null);
 
   // Quiz states
   const [userAnswers, setUserAnswers] = useState({});
@@ -35,30 +40,37 @@ export default function Learn() {
     if (authLoading) return;
     if (!user) { navigate('/login'); return; }
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId, user, authLoading]);
 
-  const fetchData = async () => {
+  async function fetchData() {
     try {
       setLoading(true);
       setErrorStatus(null);
-      const [courseRes, progressRes] = await Promise.all([
-        api.get(`/courses/courses/${courseId}/`),
-        api.get(`/courses/progress/my_progress/?course_id=${courseId}`).catch(() => ({ data: [] }))
-      ]);
-      
+
+      // Bước 1: Lấy thông tin khóa học (public)
+      const courseRes = await api.get(`/courses/courses/${courseId}/`);
       const courseData = courseRes.data;
       setCourse(courseData);
-      
+
+      // Bước 2 (Fix #2): Xác minh đăng ký — endpoint này trả 403 nếu chưa enroll
+      await api.get(`/courses/courses/${courseId}/lessons/`);
+
+      // Bước 3: Load progress song song sau khi xác nhận đã enroll
+      const progressRes = await api.get(
+        `/courses/progress/my_progress/?course_id=${courseId}`
+      ).catch(() => ({ data: [] }));
+
       const allLessons = [];
       (courseData.chapters || []).forEach(chapter => {
-          allLessons.push(...chapter.lessons);
+        allLessons.push(...chapter.lessons);
       });
       setLessons(allLessons);
 
       const pMap = {};
       (progressRes.data || []).forEach(p => { pMap[p.lesson] = p.status; });
       setProgress(pMap);
-      
+
       if (allLessons.length > 0) setActiveLesson(allLessons[0]);
     } catch (err) {
       setErrorStatus(err.response?.status || 500);
@@ -66,6 +78,29 @@ export default function Learn() {
       setLoading(false);
     }
   };
+
+  // Fix #6: Heartbeat — reset bộ đếm mỗi khi đổi bài học
+  useEffect(() => {
+    heartbeatSecondsRef.current = 0;
+  }, [activeLesson]);
+
+  // Fix #6: Gửi heartbeat mỗi 30 giây khi đang xem bài học
+  useEffect(() => {
+    if (!activeLesson) return;
+    heartbeatIntervalRef.current = setInterval(async () => {
+      heartbeatSecondsRef.current += 30;
+      try {
+        await api.post('/courses/progress/heartbeat/', {
+          lesson_id: activeLesson.id,
+          seconds: 30,
+        });
+      } catch (e) {
+        // Silent fail — buffer sẽ được flush sau
+        console.warn('Heartbeat failed:', e?.response?.status);
+      }
+    }, 30000);
+    return () => clearInterval(heartbeatIntervalRef.current);
+  }, [activeLesson]);
 
   const markCompleted = useCallback(async () => {
     if (!activeLesson || markingDone) return;
@@ -89,6 +124,7 @@ export default function Learn() {
       const answers = Object.values(userAnswers);
       const res = await api.post(`/courses/quizzes/${activeQuiz.id}/submit/`, { answers });
       setQuizResult(res.data);
+    // eslint-disable-next-line no-unused-vars
     } catch (error) {
       alert('Lỗi khi nộp bài.');
     } finally {
@@ -109,6 +145,19 @@ export default function Learn() {
   };
 
   if (authLoading || loading) return <div className="lrn-fullscreen-state"><div className="lrn-spinner" /><p>Đang tải bài giảng...</p></div>;
+  if (errorStatus === 403) return (
+    <div className="lrn-fullscreen-state" style={{gap: 16}}>
+      <span style={{fontSize: 56}}>🔒</span>
+      <h2 style={{margin: 0}}>Bạn chưa đăng ký khóa học này</h2>
+      <p style={{color: '#6b7280', margin: 0}}>Vui lòng mua khóa học để truy cập nội dung.</p>
+      <button
+        onClick={() => navigate(`/course/${courseId}`)}
+        style={{padding: '12px 28px', background: '#0056d2', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: 'pointer'}}
+      >
+        Xem khóa học →
+      </button>
+    </div>
+  );
   if (errorStatus) return <div className="lrn-fullscreen-state"><h2>Lỗi {errorStatus}</h2></div>;
 
   return (
