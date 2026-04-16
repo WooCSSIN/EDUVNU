@@ -35,3 +35,10 @@ class ReviewAdmin(admin.ModelAdmin):
     list_display = ('user', 'course', 'rating', 'created_at')
     list_filter = ('rating', 'course')
     search_fields = ('user__username', 'course__title')
+
+from .models import DegreeProgram
+@admin.register(DegreeProgram)
+class DegreeProgramAdmin(admin.ModelAdmin):
+    list_display = ('title', 'school', 'level', 'subject', 'is_active')
+    list_filter = ('level', 'subject', 'school', 'is_active')
+    search_fields = ('title', 'school', 'instructor')

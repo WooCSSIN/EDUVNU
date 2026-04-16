@@ -49,7 +49,6 @@ INSTALLED_APPS = [
     'corsheaders',
 
     # Third party apps
-    'django_celery_beat',
     'rest_framework',
     'rest_framework_simplejwt',
 
@@ -63,7 +62,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -99,25 +97,16 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'mssql',
-        'NAME': os.getenv('DB_NAME', 'Courses'),
-        'USER': os.getenv('DB_USER', ''),
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),
-        'HOST': os.getenv('DB_HOST', 'localhost\\KMS'),
-        'PORT': os.getenv('DB_PORT', ''),
-        'OPTIONS': {
-            'driver': os.getenv('DB_DRIVER', 'ODBC Driver 18 for SQL Server'),
-            'extra_params': 'Trusted_Connection=yes;Encrypt=no;TrustServerCertificate=yes;' if not os.getenv('DB_USER') else 'Encrypt=no;TrustServerCertificate=yes;',
+        'NAME': 'Courses',
+        'USER': '',
+        'PASSWORD': '',
+        'HOST': 'localhost\\KMS',
+        'PORT': '',
+        'OPTIONS': {'driver': 'ODBC Driver 18 for SQL Server',
+            'extra_params': 'Trusted_Connection=yes;Encrypt=no;TrustServerCertificate=yes;',
         },
     }
 }
-
-# ─── Cấu hình Celery & Redis (Background Tasks Worker) ────────
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/1')
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'UTC'
-
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -158,10 +147,6 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# Optimize static files storage with compression
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -205,7 +190,9 @@ MOMO_PARTNER_CODE = os.getenv('MOMO_PARTNER_CODE', 'MOMO')
 MOMO_ACCESS_KEY = os.getenv('MOMO_ACCESS_KEY', 'F8BBA842ECF85')
 MOMO_SECRET_KEY = os.getenv('MOMO_SECRET_KEY', 'K951B6PE1waRX')
 MOMO_ENDPOINT = 'https://test-payment.momo.vn/v2/gateway/api/create'
-
 # ─── Stripe Payment Settings ───────────────────────────────────
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
+
+# Email setup for development
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

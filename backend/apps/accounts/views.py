@@ -5,9 +5,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
 from .models import User
 from .serializers import UserSerializer, RegisterSerializer
-
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
@@ -75,3 +77,52 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data)
+
+
+class PasswordResetRequestView(generics.GenericAPIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        if not email:
+            return Response({'error': 'Vui lòng cung cấp email.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({'error': 'Email này chưa được đăng ký trong hệ thống.'}, status=status.HTTP_404_NOT_FOUND)
+
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        # Trả về token trực tiếp để Frontend tự điều hướng (không cần email)
+        return Response({
+            'message': 'Xác thực thành công. Vui lòng đặt lại mật khẩu.',
+            'uidb64': uidb64,
+            'token': token,
+        })
+
+
+class PasswordResetConfirmView(generics.GenericAPIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        uidb64 = request.data.get('uidb64')
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+
+        if not uidb64 or not token or not new_password:
+            return Response({'error': 'Dữ liệu không hợp lệ.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+
+        if user is not None and default_token_generator.check_token(user, token):
+            user.set_password(new_password)
+            user.save()
+            return Response({'message': 'Mật khẩu đã được đặt lại thành công.'})
+        else:
+            return Response({'error': 'Link đặt lại mật khẩu đã hết hạn hoặc không hợp lệ.'}, status=status.HTTP_400_BAD_REQUEST)
+

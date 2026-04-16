@@ -134,14 +134,17 @@ class LessonComment(models.Model):
 
 class Enrollment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='enrollments')
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrollments')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
+    degree_program = models.ForeignKey('DegreeProgram', on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
     enrolled_at = models.DateTimeField(auto_now_add=True)
+    progress_data = models.JSONField(default=dict, help_text="Lưu tiến độ học bằng cấp (JSON)")
 
     class Meta:
-        unique_together = ('user', 'course')
+        unique_together = ('user', 'course', 'degree_program')
 
     def __str__(self):
-        return f"{self.user} -> {self.course}"
+        target = self.course.title if self.course else self.degree_program.title
+        return f"{self.user} -> {target}"
 
 class UserProgress(models.Model):
     STATUS_CHOICES = (
@@ -283,4 +286,24 @@ class FAQ(models.Model):
 
     def __str__(self):
         return self.question
+
+class DegreeProgram(models.Model):
+    level = models.CharField(max_length=100)
+    subject = models.CharField(max_length=100)
+    school = models.CharField(max_length=200)
+    title = models.CharField(max_length=255)
+    deadline = models.CharField(max_length=100)
+    duration = models.CharField(max_length=100)
+    tuition = models.CharField(max_length=100)
+    logo = models.CharField(max_length=50, help_text="Tên viết tắt trường để frontend dựa vào render màu (VD: 'BK')")
+    instructor = models.CharField(max_length=200, null=True, blank=True)
+    instructor_title = models.CharField(max_length=200, null=True, blank=True)
+    skills = models.JSONField(default=list, help_text="Danh sách kỹ năng (JSON array of strings)")
+    curriculum = models.JSONField(default=list, help_text="Chương trình học (JSON array of objects: {title, lessons})")
+    videos = models.JSONField(default=list, help_text="Video liên quan (JSON array of strings)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.school}"
 

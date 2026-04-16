@@ -1,10 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../api/axios';
 
 export default function Transactions() {
-  const transactions = [
-    { id: 'TX12345', date: '26/03/2026', title: 'Google Data Analytics Certificate', amount: '499.000 đ', status: 'Đã hoàn tất' },
-    { id: 'TX12346', date: '24/02/2026', title: 'Python for Beginners', amount: '250.000 đ', status: 'Đã hoàn tất' }
-  ];
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/orders/orders/')
+      .then(res => {
+        setTransactions(res.data.results || res.data);
+      })
+      .catch(err => console.error("Không thể tải lịch sử giao dịch", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const getStatusText = (s) => s === 'paid' ? 'Đã hoàn tất' : s === 'pending' ? 'Chờ thanh toán' : 'Thất bại';
+  const getStatusColor = (s) => s === 'paid' ? {bg: '#dcfce7', color: '#166534'} : s === 'pending' ? {bg: '#fbf8cc', color: '#9a7b4f'} : {bg: '#fee2e2', color: '#991b1b'};
 
   return (
     <div className="container" style={{maxWidth: '1000px', padding: '64px 20px'}}>
@@ -22,18 +33,29 @@ export default function Transactions() {
           </tr>
         </thead>
         <tbody>
-          {transactions.map(item => (
-            <tr key={item.id} style={{borderBottom: '1px solid #eee', fontSize: '14px'}}>
-              <td style={{padding: '16px'}}>{item.date}</td>
-              <td style={{padding: '16px', fontWeight: '600', color: '#1f1f1f'}}>{item.title}</td>
-              <td style={{padding: '16px', textAlign: 'right', fontWeight: '700'}}>{item.amount}</td>
-              <td style={{padding: '16px', textAlign: 'center'}}>
-                 <span style={{padding: '4px 12px', background: '#dcfce7', color: '#166534', borderRadius: '12px', fontSize: '12px', fontWeight: '600'}}>
-                    {item.status}
-                 </span>
-              </td>
-            </tr>
-          ))}
+          {loading ? (
+            <tr><td colSpan="4" style={{padding: '16px', textAlign: 'center'}}>Đang tải dữ liệu...</td></tr>
+          ) : transactions.length === 0 ? (
+            <tr><td colSpan="4" style={{padding: '16px', textAlign: 'center'}}>Bạn chưa có giao dịch nào.</td></tr>
+          ) : (
+            transactions.map(item => {
+              const statusCol = getStatusColor(item.status);
+              return (
+                <tr key={item.id} style={{borderBottom: '1px solid #eee', fontSize: '14px'}}>
+                  <td style={{padding: '16px'}}>{new Date(item.created_at).toLocaleDateString('vi-VN')}</td>
+                  <td style={{padding: '16px', fontWeight: '600', color: '#1f1f1f'}}>
+                    {item.items && item.items.length > 0 ? item.items.map(i => i.course?.title).join(', ') : `Đơn hàng #${item.id}`}
+                  </td>
+                  <td style={{padding: '16px', textAlign: 'right', fontWeight: '700'}}>{parseFloat(item.total_price).toLocaleString('vi-VN')} đ</td>
+                  <td style={{padding: '16px', textAlign: 'center'}}>
+                    <span style={{padding: '4px 12px', background: statusCol.bg, color: statusCol.color, borderRadius: '12px', fontSize: '12px', fontWeight: '600'}}>
+                        {getStatusText(item.status)}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })
+          )}
         </tbody>
       </table>
     </div>

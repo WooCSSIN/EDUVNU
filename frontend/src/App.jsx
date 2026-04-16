@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-do
 import './App.css';
 import Home from './pages/Home';
 import Auth from './pages/Auth';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import Cart from './pages/Cart';
 import Learn from './pages/Learn';
@@ -212,6 +214,8 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Auth />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:uidb64/:token" element={<ResetPassword />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/learn/:courseId" element={<Learn />} />

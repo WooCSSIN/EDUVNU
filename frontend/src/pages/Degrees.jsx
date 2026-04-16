@@ -1,6 +1,8 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import usePageSEO from '../hooks/usePageSEO';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 /* ── DATA ── */
 const DEGREE_LEVELS = ['Bằng cử nhân', 'Bằng thạc sĩ'];
@@ -8,17 +10,6 @@ const SUBJECTS = [
   'Arts and Humanities', 'Business', 'Computer Science',
   'Data Science', 'Information Technology', 'Math and Logic',
   'Physical Science and Engineering', 'Social Sciences',
-];
-
-const PROGRAMS = [
-  { id: 1, level: 'Bằng cử nhân', subject: 'Computer Science', school: 'Đại học Bách Khoa Hà Nội', title: 'Bachelor of Science in Computer Science', deadline: '30 tháng 4 năm 2026', duration: '4 năm', tuition: '15.000.000 đ/năm', logo: 'BK', instructor: 'GS. TS. Nguyễn Văn Minh', instructorTitle: 'Trưởng khoa CNTT - ĐH Bách Khoa HN', skills: ['Lập trình Python', 'Cấu trúc dữ liệu', 'Giải thuật', 'Hệ điều hành', 'Mạng máy tính', 'Cơ sở dữ liệu'], curriculum: [{ title: 'Năm 1: Nền tảng Khoa học máy tính', lessons: ['Nhập môn lập trình', 'Toán rời rạc', 'Vật lý đại cương', 'Tiếng Anh chuyên ngành'] }, { title: 'Năm 2: Kỹ thuật phần mềm', lessons: ['Cấu trúc dữ liệu & Giải thuật', 'Lập trình hướng đối tượng', 'Cơ sở dữ liệu', 'Mạng máy tính'] }, { title: 'Năm 3: Chuyên sâu', lessons: ['Trí tuệ nhân tạo', 'Phát triển Web', 'An toàn thông tin', 'Hệ thống phân tán'] }, { title: 'Năm 4: Dự án & Thực tập', lessons: ['Thực tập doanh nghiệp', 'Đồ án tốt nghiệp', 'Khởi nghiệp công nghệ'] }], videos: ['Giới thiệu Computer Science - CS50 Harvard', 'Python cho người mới bắt đầu', 'Data Structures & Algorithms Visualized', 'How the Internet Works'] },
-  { id: 2, level: 'Bằng thạc sĩ', subject: 'Data Science', school: 'Đại học Quốc gia TP.HCM', title: 'Master of Science in Data Science & AI', deadline: '17 tháng 4 năm 2026', duration: '2 năm', tuition: '25.000.000 đ/năm', logo: 'QG', instructor: 'PGS. TS. Trần Thị Lan', instructorTitle: 'Giám đốc Trung tâm AI - ĐHQG TP.HCM', skills: ['Machine Learning', 'Deep Learning', 'Python/R', 'Big Data', 'Data Visualization', 'NLP'], curriculum: [{ title: 'HK1: Nền tảng Data Science', lessons: ['Thống kê nâng cao', 'Machine Learning cơ bản', 'Python for Data Science', 'SQL & NoSQL'] }, { title: 'HK2: Deep Learning & AI', lessons: ['Neural Networks', 'Computer Vision', 'NLP & LLMs', 'Reinforcement Learning'] }, { title: 'HK3: Big Data & Cloud', lessons: ['Apache Spark', 'Cloud AI (AWS/GCP)', 'MLOps & Deployment', 'Data Engineering'] }, { title: 'HK4: Luận văn nghiên cứu', lessons: ['Đề xuất nghiên cứu', 'Thực nghiệm & Đánh giá', 'Bảo vệ luận văn'] }], videos: ['Introduction to Machine Learning - Andrew Ng', 'Deep Learning Specialization Overview', 'What is Data Science?', 'AI & The Future of Work'] },
-  { id: 3, level: 'Bằng cử nhân', subject: 'Business', school: 'Đại học Kinh tế Quốc dân', title: 'Bachelor of Business Administration', deadline: '15 tháng 5 năm 2026', duration: '4 năm', tuition: '12.000.000 đ/năm', logo: 'KT', instructor: 'TS. Lê Minh Tuấn', instructorTitle: 'Trưởng khoa Quản trị Kinh doanh - ĐHKTQD', skills: ['Quản trị kinh doanh', 'Marketing', 'Tài chính', 'Kế toán', 'Quản lý dự án', 'Leadership'], curriculum: [{ title: 'Năm 1: Kinh tế học đại cương', lessons: ['Kinh tế vi mô', 'Kinh tế vĩ mô', 'Toán kinh tế', 'Luật kinh doanh'] }, { title: 'Năm 2: Quản trị cốt lõi', lessons: ['Marketing căn bản', 'Kế toán tài chính', 'Quản trị nhân sự', 'Quản lý dự án'] }, { title: 'Năm 3: Chuyên ngành', lessons: ['Chiến lược kinh doanh', 'Thương mại điện tử', 'Tài chính doanh nghiệp'] }, { title: 'Năm 4: Thực chiến', lessons: ['Thực tập doanh nghiệp', 'Khởi nghiệp & Đổi mới sáng tạo', 'Khóa luận tốt nghiệp'] }], videos: ['What is Business Administration?', 'Marketing Fundamentals - Kotler', 'Financial Management Basics', 'Entrepreneurship & Startup'] },
-  { id: 4, level: 'Bằng thạc sĩ', subject: 'Information Technology', school: 'Đại học FPT', title: 'Master of Science in Information Technology', deadline: '1 tháng 6 năm 2026', duration: '2 năm', tuition: '30.000.000 đ/năm', logo: 'FP', instructor: 'TS. Phạm Quốc Hùng', instructorTitle: 'Giám đốc Học thuật - ĐH FPT', skills: ['Cloud Computing', 'DevOps', 'Cybersecurity', 'System Architecture', 'Project Management', 'Agile/Scrum'], curriculum: [{ title: 'HK1: IT Hiện đại', lessons: ['Cloud Computing (AWS/Azure)', 'Microservices Architecture', 'DevOps & CI/CD', 'Agile Leadership'] }, { title: 'HK2: An toàn & Bảo mật', lessons: ['Cybersecurity Strategy', 'Penetration Testing', 'Network Security', 'Compliance & Governance'] }, { title: 'HK3: Chuyển đổi số', lessons: ['Digital Transformation', 'Enterprise Architecture', 'IT Strategy'] }, { title: 'HK4: Dự án cuối khoá', lessons: ['Research Methodology', 'Capstone Project', 'Industry Presentation'] }], videos: ['Cloud Computing Explained', 'DevOps Roadmap 2025', 'Cybersecurity for Beginners', 'Digital Transformation Strategy'] },
-  { id: 5, level: 'Bằng cử nhân', subject: 'Data Science', school: 'Đại học Công nghệ - ĐHQGHN', title: 'Bachelor of Science in Data Science', deadline: '20 tháng 4 năm 2026', duration: '4 năm', tuition: '14.000.000 đ/năm', logo: 'CN', instructor: 'GS. Nguyễn Hữu Đức', instructorTitle: 'Phó Giám đốc ĐHQGHN', skills: ['Python', 'Statistics', 'Data Analysis', 'Machine Learning', 'Visualization', 'SQL'], curriculum: [{ title: 'Năm 1: Toán & Lập trình', lessons: ['Giải tích & Đại số tuyến tính', 'Xác suất thống kê', 'Python cơ bản', 'Nhập môn CSDL'] }, { title: 'Năm 2: Phân tích dữ liệu', lessons: ['Data Wrangling', 'Exploratory Data Analysis', 'Machine Learning cơ bản', 'Data Visualization'] }, { title: 'Năm 3: ML & AI ứng dụng', lessons: ['Advanced ML', 'Time Series Analysis', 'Recommendation Systems'] }, { title: 'Năm 4: Đồ án & Thực tập', lessons: ['Internship tại doanh nghiệp', 'Capstone Data Project', 'Thi tốt nghiệp'] }], videos: ['Data Science Full Course', 'Statistics for Data Science', 'Pandas & NumPy Tutorial', 'Matplotlib & Seaborn Visualization'] },
-  { id: 6, level: 'Bằng thạc sĩ', subject: 'Computer Science', school: 'Đại học Bách Khoa TP.HCM', title: 'Master of Science in Computer Science', deadline: '10 tháng 5 năm 2026', duration: '2 năm', tuition: '28.000.000 đ/năm', logo: 'BK', instructor: 'PGS. TS. Võ Đình Hiếu', instructorTitle: 'Trưởng khoa KHMT - ĐH Bách Khoa HCM', skills: ['Algorithms', 'Distributed Systems', 'Compiler Design', 'AI/ML Research', 'System Programming'], curriculum: [{ title: 'HK1: CS Nâng cao', lessons: ['Advanced Algorithms', 'Distributed Computing', 'Programming Language Theory', 'Research Methods'] }, { title: 'HK2: Hệ thống', lessons: ['Operating Systems Advanced', 'Computer Architecture', 'Compiler Construction'] }, { title: 'HK3 & 4: Nghiên cứu', lessons: ['Chọn hướng nghiên cứu', 'Thực nghiệm', 'Báo cáo khoa học', 'Bảo vệ luận văn'] }], videos: ['Advanced Algorithms - MIT OCW', 'Distributed Systems Concepts', 'How Compilers Work', 'Research Skills for CS Graduate'] },
-  { id: 7, level: 'Bằng cử nhân', subject: 'Math and Logic', school: 'Đại học Khoa học Tự nhiên', title: 'Bachelor of Science in Mathematics', deadline: '25 tháng 4 năm 2026', duration: '4 năm', tuition: '11.000.000 đ/năm', logo: 'KH', instructor: 'GS. TSKH. Đặng Hùng Thắng', instructorTitle: 'Giáo sư Toán học nổi tiếng VN', skills: ['Calculus', 'Linear Algebra', 'Statistics', 'Logic', 'Number Theory', 'Mathematical Modeling'], curriculum: [{ title: 'Năm 1: Toán cơ bản', lessons: ['Giải tích 1, 2, 3', 'Đại số tuyến tính', 'Toán rời rạc', 'Nhập môn lập trình'] }, { title: 'Năm 2: Toán ứng dụng', lessons: ['Xác suất & Thống kê', 'Phương trình vi phân', 'Phương pháp số', 'Tối ưu hóa'] }, { title: 'Năm 3: Chuyên sâu', lessons: ['Lý thuyết số', 'Hình học vi phân', 'Giải tích hàm'] }, { title: 'Năm 4: Nghiên cứu & Ứng dụng', lessons: ['Toán tài chính', 'Thống kê nâng cao', 'Khóa luận tốt nghiệp'] }], videos: ['The Beauty of Mathematics', 'Linear Algebra - 3Blue1Brown', 'Statistics Fundamentals', 'Mathematical Modeling in Real Life'] },
-  { id: 8, level: 'Bằng thạc sĩ', subject: 'Business', school: 'Đại học Ngoại thương', title: 'Master of Business Administration (MBA)', deadline: '30 tháng 5 năm 2026', duration: '2 năm', tuition: '35.000.000 đ/năm', logo: 'NT', instructor: 'PGS. TS. Bùi Thị Thanh', instructorTitle: 'Hiệu trưởng - Trường Kinh tế ĐH Ngoại thương', skills: ['Strategic Management', 'Corporate Finance', 'Global Marketing', 'Leadership', 'Negotiation', 'Business Analytics'], curriculum: [{ title: 'HK1: Nền tảng MBA', lessons: ['Financial Accounting', 'Organizational Behavior', 'Microeconomics for Managers', 'Business Analytics'] }, { title: 'HK2: Chức năng kinh doanh', lessons: ['Strategic Marketing', 'Corporate Finance', 'Operations Management', 'Global Business'] }, { title: 'HK3: Lãnh đạo', lessons: ['Leadership & Ethics', 'Negotiation & Conflict Resolution', 'Innovation Management'] }, { title: 'HK4: Capstone', lessons: ['Business Consulting Project', 'Executive Presentation', 'Bảo vệ luận văn MBA'] }], videos: ['MBA vs Masters in Business', 'MBA Program Overview', 'Corporate Finance Basics', 'What CEOs Do Every Day'] },
 ];
 
 const GRAD_MAP = {
@@ -45,6 +36,39 @@ function DegreeDetail({ program, onClose }) {
     { id: 'skills', label: '🏆 Kỹ năng' },
   ];
 
+  const [completedKeys, setCompletedKeys] = useState([]);
+  const { user } = useAuth();
+
+  // Lấy tiến độ hiện tại của user cho bằng này
+  useEffect(() => {
+    if (user) {
+      api.get('/courses/courses/my_schedule/').then(res => {
+        const myDeg = res.data.find(item => item.degree_id === program.id);
+        if (myDeg) setCompletedKeys(myDeg.completed_keys || []);
+      }).catch(() => {});
+    }
+  }, [user, program.id]);
+
+  const toggleLesson = async (mIdx, lIdx) => {
+    if (!user) return;
+    const key = `${mIdx}-${lIdx}`;
+    const isCompleted = !completedKeys.includes(key);
+    
+    // Cập nhật UI nhanh (Optimistic UI)
+    setCompletedKeys(prev => isCompleted ? [...prev, key] : prev.filter(k => k !== key));
+
+    try {
+      await api.post('/courses/courses/update_degree_progress/', {
+        degree_id: program.id,
+        lesson_key: key,
+        is_completed: isCompleted
+      });
+    } catch (e) {
+      // Rollback nếu lỗi
+      setCompletedKeys(prev => isCompleted ? prev.filter(k => k !== key) : [...prev, key]);
+    }
+  };
+
   const grad = GRAD_MAP[program.logo] || 'linear-gradient(135deg,#0369a1,#0ea5e9)';
 
   return (
@@ -53,7 +77,7 @@ function DegreeDetail({ program, onClose }) {
         <div className="deg-modal" style={{ maxWidth: 780, width: '94%' }} onClick={e => e.stopPropagation()}>
           <button className="deg-modal-close" onClick={onClose}>✕</button>
 
-          {/* HEADER */}
+          {/* ... HEADER ... (giữ nguyên nhưng có thể rút gọn nếu cần) */}
           <div className="deg-modal-header" style={{ background: grad, padding: '28px 32px' }}>
             <div className="deg-modal-logo">{program.logo}</div>
             <div style={{ flex: 1 }}>
@@ -65,6 +89,12 @@ function DegreeDetail({ program, onClose }) {
                 ))}
               </div>
             </div>
+            {completedKeys.length > 0 && (
+               <div style={{ textAlign: 'right', color: '#fff' }}>
+                  <div style={{ fontSize: 24, fontWeight: 800 }}>{Math.round(completedKeys.length / (program.curriculum || []).reduce((s,c)=>s+c.lessons.length,0) * 100)}%</div>
+                  <div style={{ fontSize: 10, opacity: 0.8 }}>TIẾN ĐỘ</div>
+               </div>
+            )}
           </div>
 
           {/* TABS */}
@@ -93,15 +123,6 @@ function DegreeDetail({ program, onClose }) {
                     </div>
                   ))}
                 </div>
-                {program.instructor && (
-                  <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: 16, background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe' }}>
-                    <div style={{ width: 52, height: 52, borderRadius: '50%', background: grad, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 20, flexShrink: 0 }}>{program.logo}</div>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: '#1d4ed8' }}>{program.instructor}</div>
-                      <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{program.instructorTitle}</div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -121,19 +142,31 @@ function DegreeDetail({ program, onClose }) {
                       <span style={{ color: '#6b7280', fontSize: 18, transition: 'transform 0.2s', display: 'inline-block', transform: expandedModule === mi ? 'rotate(90deg)' : 'none' }}>›</span>
                     </button>
                     {expandedModule === mi && (
-                      <ul style={{ listStyle: 'none', margin: 0, padding: '4px 18px 14px 66px', background: '#f9fafb' }}>
-                        {mod.lessons.map((lesson, li) => (
-                          <li key={li} style={{ padding: '8px 0', borderTop: li > 0 ? '1px solid #f3f4f6' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ color: '#0056D2', fontSize: 13 }}>▶</span>
-                            <span style={{ fontSize: 13, color: '#374151' }}>{lesson}</span>
-                          </li>
-                        ))}
+                      <ul style={{ listStyle: 'none', margin: 0, padding: '4px 18px 14px 18px', background: '#f9fafb' }}>
+                        {mod.lessons.map((lesson, li) => {
+                          const isDone = completedKeys.includes(`${mi}-${li}`);
+                          return (
+                            <li key={li} style={{ padding: '10px 0', borderTop: li > 0 ? '1px solid #f3f4f6' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ color: isDone ? '#059669' : '#0056D2', fontSize: 13 }}>{isDone ? '✔' : '▶'}</span>
+                                <span style={{ fontSize: 13, color: isDone ? '#9ca3af' : '#374151', textDecoration: isDone ? 'line-through' : 'none' }}>{lesson}</span>
+                              </div>
+                              <input 
+                                type="checkbox" 
+                                checked={isDone} 
+                                onChange={() => toggleLesson(mi, li)}
+                                style={{ width: 18, height: 18, cursor: 'pointer' }}
+                              />
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>
                 ))}
               </div>
             )}
+            {/* ... giữ nguyên các tab khác ... */}
 
             {activeTab === 'videos' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -291,10 +324,17 @@ function Degrees() {
   const [levelFilter, setLevelFilter] = useState([]);
   const [subjectFilter, setSubjectFilter] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [programs, setPrograms] = useState([]);
   // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate();
 
-  const filtered = PROGRAMS.filter(p => {
+  useEffect(() => {
+    api.get('/courses/degree-programs/')
+      .then(res => setPrograms(res.data.results || res.data))
+      .catch(err => console.error("Could not fetch degree programs", err));
+  }, []);
+
+  const filtered = programs.filter(p => {
     const lvlOk = levelFilter.length === 0 || levelFilter.includes(p.level);
     const subOk = subjectFilter.length === 0 || subjectFilter.includes(p.subject);
     return lvlOk && subOk;

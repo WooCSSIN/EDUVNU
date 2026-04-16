@@ -134,3 +134,10 @@ class FAQSerializer(serializers.ModelSerializer):
     class Meta:
         model = FAQ
         fields = '__all__'
+
+from .models import DegreeProgram
+
+class DegreeProgramSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DegreeProgram
+        fields = '__all__'

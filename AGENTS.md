@@ -80,6 +80,43 @@ VNU/
 - **Optimization pattern**: Khi lấy danh sách học viên hoặc analytics, hãy tính toán tổng hợp tại SQL. Luôn sử dụng `select_related` và `prefetch_related` để giảm N+1 queries.
 - **Giao diện Spline 3D**: Ẩn watermark Spline bằng `overflow: hidden` ở div cha và `height: calc(100% + 80px)` ở iframe.
 - **Mẹo thu phóng logo**: Dùng CSS `transform: scale(...)` để xử lý ảnh logo có nhiều khoảng trắng mà không hỏng layout.
-- **Quản lý Video Khóa học (YouTube)**: Dùng script `seed_mock_lessons.py` để map videoID. Tuyệt đối không gọi YouTube API trực tiếp phí quota.
+- **Quản lý Video Khóa học (YouTube)**: Dùng script `fix_all_videos_final.py` với 20 video ID đã xác nhận embed OK. Loại bỏ hoàn toàn `jGwO_UgTS7I` và `FOfPjj7D414` (bị chặn embed). Ưu tiên freeCodeCamp (chính sách cho phép embed 100%).
 - **Luồng Xóa Giỏ Hàng**: Chỉ xóa cart khi có xác nhận thành công thanh toán (`status='paid'`). Không xóa ở bước khởi tạo đơn hàng.
 - **Notification Flow**: Mọi hành động quan trọng (Approved, Rejected, Paid) đều phải lưu vào model `Notification`.
+- **API my_courses trả cả Course + Degree**: API `/courses/courses/my_courses/` giờ trả `type: 'course'` hoặc `type: 'degree'` để frontend phân biệt. Không dùng `EnrollmentSerializer` nữa, trả JSON thủ công.
+
+# Nhật ký phát triển
+
+## 📅 Ngày 16/04/2026 — Sửa Video, Profile & Giáo trình
+
+### 🎬 Sửa lỗi Video Embed (Degree + Course)
+- **Vấn đề**: Nhiều video trên trang học hiện "Video không có sẵn" do YouTube chặn embed trên localhost.
+- **Nguyên nhân gốc**: 2 video ID bị chủ sở hữu tắt embed:
+  - `jGwO_UgTS7I` (3Blue1Brown Gradient Descent) ❌
+  - `FOfPjj7D414` (CS50P Harvard) ❌
+- **Giải pháp**: 
+  - Loại bỏ hoàn toàn 2 ID trên khỏi hệ thống.
+  - Thay bằng **20 video ID đã xác nhận embed OK** (freeCodeCamp + 3Blue1Brown + CS50 + Karpathy).
+  - Script: `backend/fix_all_videos_final.py` — cập nhật 66 bài học + 111 bài giảng degree.
+- **File thay đổi**: 
+  - `backend/fix_all_videos_final.py` — script gán video cuối cùng
+  - `frontend/src/pages/Learn.jsx` — khôi phục iframe embed (từ bỏ phương án redirect YouTube)
+
+### 👤 Sửa lỗi trang Hồ sơ (Profile)
+- **Bug 1 — Màn hình trắng**: `user.username[0]` crash khi username undefined → sửa `(user.username || 'U')[0]`
+- **Bug 2 — Họ tên không cập nhật**: Sau khi save, `user` trong AuthContext không refresh → thêm `refreshUser()` vào AuthContext, gọi sau `api.patch()`.
+- **Bug 3 — "Khóa học" thay vì tên thật**: API `my_courses` trả degree enrollment có `course: null` → sửa API trả `type: 'degree'` kèm `degree.title`.
+- **Bug 4 — 404 khi bấm khóa học**: Navigate dùng sai ID → dùng `course.id` cho course, `deg_${id}` cho degree.
+- **File thay đổi**:
+  - `frontend/src/context/AuthContext.jsx` — thêm `refreshUser()`
+  - `frontend/src/pages/Profile.jsx` — sửa crash + cập nhật name + enrollment display
+  - `backend/apps/courses/views.py` — sửa API `my_courses` trả cả course + degree
+
+### 📚 Xây dựng lại trang Giáo trình (Documents)
+- **Trước**: Trang Tài liệu đơn giản, CSS bị vỡ layout, crash khi gặp degree enrollment.
+- **Sau**: Trang Giáo trình hoàn chỉnh với:
+  - Sidebar trái: danh sách khóa học (xanh) + bằng cấp (tím), sticky, hover effect
+  - Main phải: header + "Học ngay →", nội dung giáo trình nhóm theo Module (degree) hoặc danh sách bài (course)
+  - Inline styles đầy đủ, không phụ thuộc CSS ngoài
+- **File thay đổi**: `frontend/src/pages/Documents.jsx` — viết lại hoàn toàn
+

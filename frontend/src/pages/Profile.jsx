@@ -6,7 +6,7 @@ import usePageSEO from '../hooks/usePageSEO';
 
 export default function Profile() {
   usePageSEO({ title: 'Hồ sơ của tôi', description: 'Quản lý thông tin cá nhân, xem các khóa học đã đăng ký và theo dõi tiến độ học tập của bạn tại EduVNU.' });
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [enrollments, setEnrollments] = useState([]);
   const [editing, setEditing] = useState(false);
@@ -23,8 +23,13 @@ export default function Profile() {
 
   const save = async (e) => {
     e.preventDefault();
-    try { await api.patch('/accounts/users/me/', form); setMsg('Đã lưu thành công!'); setEditing(false); }
-    catch { setMsg('Lưu thất bại.'); }
+    try {
+      await api.patch('/accounts/users/me/', form);
+      await refreshUser();
+      setMsg('Đã lưu thành công!');
+      setEditing(false);
+    }
+    catch(err) { setMsg('Lưu thất bại.'); }
   };
 
   if (!user) return null;
@@ -34,7 +39,7 @@ export default function Profile() {
       {/* SIDEBAR */}
       <aside className="crs-profile-sidebar">
         <div className="crs-profile-avatar-wrap">
-          <div className="crs-profile-avatar-lg">{user.username[0].toUpperCase()}</div>
+          <div className="crs-profile-avatar-lg">{(user.username || 'U')[0].toUpperCase()}</div>
           <h2>{user.first_name ? `${user.first_name} ${user.last_name}` : user.username}</h2>
           <p className="crs-muted">{user.email}</p>
           <span className="crs-role-badge">{user.is_instructor ? 'Giảng viên' : 'Học viên'}</span>
@@ -91,17 +96,30 @@ export default function Profile() {
             </div>
           ) : (
             <div className="crs-enrolled-grid">
-              {enrollments.slice(0, 4).map(e => (
-                <div key={e.id} className="crs-enrolled-card" onClick={() => navigate(`/learn/${e.course.id}`)}>
-                  <div className="crs-enrolled-thumb" style={{background:'linear-gradient(135deg,#0369a1,#0ea5e9)'}}>
-                    {e.course.title[0]}
+              {enrollments.slice(0, 6).map(e => {
+                const isDegree = !!(e.degree || e.degree_detail);
+                const item = isDegree
+                  ? (e.degree_detail || e.degree || {})
+                  : (e.course || e);
+                const title = item.title || 'Khóa học';
+                const navId = isDegree ? `deg_${item.id || e.degree_id || e.id}` : (item.id || e.id);
+                const gradient = isDegree
+                  ? 'linear-gradient(135deg,#7c3aed,#a855f7)'
+                  : 'linear-gradient(135deg,#0369a1,#0ea5e9)';
+                return (
+                  <div key={e.id} className="crs-enrolled-card" onClick={() => navigate(`/learn/${navId}`)}>
+                    <div className="crs-enrolled-thumb" style={{background: gradient}}>
+                      {title[0]}
+                    </div>
+                    <div className="crs-enrolled-info">
+                      <p className="crs-enrolled-title">{title}</p>
+                      <p className="crs-enrolled-org">
+                        {isDegree ? '🎓 Bằng cấp' : (item.instructor?.first_name || item.instructor?.username || '')}
+                      </p>
+                    </div>
                   </div>
-                  <div className="crs-enrolled-info">
-                    <p className="crs-enrolled-title">{e.course.title}</p>
-                    <p className="crs-enrolled-org">{e.course.instructor?.first_name || e.course.instructor?.username}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

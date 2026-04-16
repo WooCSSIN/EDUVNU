@@ -48,30 +48,74 @@ export default function Learn() {
       setLoading(true);
       setErrorStatus(null);
 
-      // Bước 1: Lấy thông tin khóa học (public)
-      const courseRes = await api.get(`/courses/courses/${courseId}/`);
-      const courseData = courseRes.data;
-      setCourse(courseData);
+      const isDegree = courseId.startsWith('deg_');
+      const realId = isDegree ? courseId.replace('deg_', '') : courseId;
 
-      // Bước 2 (Fix #2): Xác minh đăng ký — endpoint này trả 403 nếu chưa enroll
-      await api.get(`/courses/courses/${courseId}/lessons/`);
+      if (isDegree) {
+        // --- LOGIC CHO BẰNG CẤP ---
+        const res = await api.get(`/courses/degree-programs/${realId}/`);
+        const degData = res.data;
+        
+        // Map Degree JSON Curriculum to Lesson objects for compatibility
+        const allLessons = [];
+        const chapters = (degData.curriculum || []).map((mod, mi) => {
+          const modLessons = (mod.lessons || []).map((lsTitle, li) => {
+            const lesson = {
+              id: `${mi}-${li}`, // Key dạng "module-lesson"
+              title: lsTitle,
+              video_url: degData.videos?.[allLessons.length] || '', // Lấy video theo thứ tự tuyến tính
+              content: `Mô tả bài học: ${lsTitle}`
+            };
+            allLessons.push(lesson);
+            return lesson;
+          });
+          return { id: mi, title: mod.title, lessons: modLessons };
+        });
 
-      // Bước 3: Load progress song song sau khi xác nhận đã enroll
-      const progressRes = await api.get(
-        `/courses/progress/my_progress/?course_id=${courseId}`
-      ).catch(() => ({ data: [] }));
+        setCourse({
+          ...degData,
+          chapters: chapters
+        });
+        setLessons(allLessons);
 
-      const allLessons = [];
-      (courseData.chapters || []).forEach(chapter => {
-        allLessons.push(...chapter.lessons);
-      });
-      setLessons(allLessons);
+        // Lấy tiến độ Degree từ Enrollment.progress_data
+        const schedRes = await api.get('/courses/courses/my_schedule/');
+        const myDeg = schedRes.data.find(item => item.degree_id == realId);
+        
+        if (myDeg) {
+          const pMap = {};
+          (myDeg.completed_keys || []).forEach(key => { pMap[key] = 'completed'; });
+          setProgress(pMap);
+        } else {
+          setErrorStatus(403); // Cần enroll để học
+        }
 
-      const pMap = {};
-      (progressRes.data || []).forEach(p => { pMap[p.lesson] = p.status; });
-      setProgress(pMap);
+        if (allLessons.length > 0) setActiveLesson(allLessons[0]);
 
-      if (allLessons.length > 0) setActiveLesson(allLessons[0]);
+      } else {
+        // --- LOGIC CHO KHÓA HỌC (CŨ) ---
+        const courseRes = await api.get(`/courses/courses/${courseId}/`);
+        const courseData = courseRes.data;
+        setCourse(courseData);
+
+        await api.get(`/courses/courses/${courseId}/lessons/`);
+
+        const progressRes = await api.get(
+          `/courses/progress/my_progress/?course_id=${courseId}`
+        ).catch(() => ({ data: [] }));
+
+        const allLessons = [];
+        (courseData.chapters || []).forEach(chapter => {
+          allLessons.push(...chapter.lessons);
+        });
+        setLessons(allLessons);
+
+        const pMap = {};
+        (progressRes.data || []).forEach(p => { pMap[p.lesson] = p.status; });
+        setProgress(pMap);
+
+        if (allLessons.length > 0) setActiveLesson(allLessons[0]);
+      }
     } catch (err) {
       setErrorStatus(err.response?.status || 500);
     } finally {
@@ -87,6 +131,10 @@ export default function Learn() {
   // Fix #6: Gửi heartbeat mỗi 30 giây khi đang xem bài học
   useEffect(() => {
     if (!activeLesson) return;
+    
+    // Tạm thời tắt heartbeat cho Degree (tránh lỗi lesson_id không hợp lệ)
+    if (courseId.startsWith('deg_')) return;
+
     heartbeatIntervalRef.current = setInterval(async () => {
       heartbeatSecondsRef.current += 30;
       try {
@@ -100,14 +148,31 @@ export default function Learn() {
       }
     }, 30000);
     return () => clearInterval(heartbeatIntervalRef.current);
-  }, [activeLesson]);
+  }, [activeLesson, courseId]);
 
   const markCompleted = useCallback(async () => {
     if (!activeLesson || markingDone) return;
     try {
       setMarkingDone(true);
+      const isDegree = courseId.startsWith('deg_');
+      const realId = isDegree ? courseId.replace('deg_', '') : courseId;
       const status = progress[activeLesson.id] === 'completed' ? 'learning' : 'completed';
-      await api.post('/courses/progress/update_progress/', { lesson_id: activeLesson.id, status });
+      
+      if (isDegree) {
+        // Gọi API lưu tiến độ Bằng cấp
+        await api.post('/courses/courses/update_degree_progress/', {
+          degree_id: realId,
+          lesson_key: activeLesson.id, // ID ở đây chính là key "module-lesson"
+          is_completed: status === 'completed'
+        });
+      } else {
+        // Gọi API lưu tiến độ Khóa học (cũ)
+        await api.post('/courses/progress/update_progress/', { 
+          lesson_id: activeLesson.id, 
+          status 
+        });
+      }
+
       setProgress(prev => ({ ...prev, [activeLesson.id]: status }));
       
       if (status === 'completed') {
@@ -115,7 +180,7 @@ export default function Learn() {
         if (idx !== -1 && idx < lessons.length - 1) setTimeout(() => setActiveLesson(lessons[idx + 1]), 600);
       }
     } catch (e) { console.error(e); } finally { setMarkingDone(false); }
-  }, [activeLesson, markingDone, progress, lessons]);
+  }, [activeLesson, markingDone, progress, lessons, courseId]);
 
   const handleQuizSubmit = async () => {
     if (!activeQuiz) return;
@@ -133,12 +198,24 @@ export default function Learn() {
   };
 
   const renderPlayer = (url) => {
-    if (!url) return <div className="lrn-no-video"><p>Video chưa cập nhật.</p></div>;
-    const vidId = url.includes('v=') ? url.split('v=')[1]?.split('&')[0] : url.split('/').pop();
+    if (!url || url.trim() === '') return <div className="lrn-no-video"><p>🎥 Video bài giảng này đang được cập nhật...</p></div>;
+    
+    let vidId = null;
+    if (/^[a-zA-Z0-9_-]{11}$/.test(url.trim())) {
+      vidId = url.trim();
+    } else {
+      const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+      const match = url.match(regExp);
+      vidId = (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    if (!vidId) return <div className="lrn-no-video"><p>🎥 Video bài giảng này đang được cập nhật...</p></div>;
+
     return (
       <iframe
         src={`https://www.youtube.com/embed/${vidId}?rel=0`}
         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
       />
     );
@@ -207,21 +284,43 @@ export default function Learn() {
               )}
             </div>
           ) : activeLesson ? (
-            <>
-              <div className="lrn-player-wrap"><div className="lrn-player-ratio">{renderPlayer(activeLesson.video_url)}</div></div>
-              <div className="lrn-lesson-info" style={{padding: '30px'}}>
-                <h1 className="lrn-lesson-title">{fixText(activeLesson.title)}</h1>
-                <div style={{display: 'flex', gap: '15px', marginTop: '20px'}}>
-                  <button className={`lrn-done-btn ${progress[activeLesson.id] === 'completed' ? 'done' : ''}`} onClick={markCompleted} disabled={markingDone}>
-                    {progress[activeLesson.id] === 'completed' ? '✓ Đã hoàn thành' : 'Đánh dấu hoàn thành'}
-                  </button>
-                </div>
-                <div className="lrn-lesson-content" style={{marginTop: '30px'}}>
-                  <h3>📖 Nội dung bài giảng</h3>
-                  <p>{activeLesson.content || 'Đang cập nhật nội dung...'}</p>
+            <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 28px' }}>
+              {/* Video Player - giới hạn kích thước hợp lý */}
+              <div style={{ background: '#000', borderRadius: 12, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+                <div style={{ position: 'relative', paddingBottom: '50%', height: 0, overflow: 'hidden' }}>
+                  {renderPlayer(activeLesson.video_url)}
                 </div>
               </div>
-            </>
+
+              {/* Thông tin bài học */}
+              <div style={{ marginTop: 20, background: '#fff', borderRadius: 12, padding: '20px 24px', border: '1px solid #e5e7eb' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                      ĐANG HỌC
+                    </div>
+                    <h1 className="lrn-lesson-title" style={{ fontSize: 20, margin: 0, lineHeight: 1.4 }}>
+                      {fixText(activeLesson.title)}
+                    </h1>
+                  </div>
+                  <button
+                    className={`lrn-done-btn ${progress[activeLesson.id] === 'completed' ? 'done' : ''}`}
+                    onClick={markCompleted}
+                    disabled={markingDone}
+                    style={{ flexShrink: 0, padding: '10px 20px', fontSize: 14 }}
+                  >
+                    {progress[activeLesson.id] === 'completed' ? '✓ Đã hoàn thành' : '✎ Đánh dấu hoàn thành'}
+                  </button>
+                </div>
+
+                {activeLesson.content && activeLesson.content !== `Mô tả bài học: ${activeLesson.title}` && (
+                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f3f4f6', color: '#374151', fontSize: 14, lineHeight: 1.75 }}>
+                    <strong style={{ color: '#111' }}>📖 Nội dung bài giảng</strong>
+                    <p style={{ marginTop: 8 }}>{activeLesson.content}</p>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : null}
         </main>
 

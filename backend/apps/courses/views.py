@@ -1,3 +1,4 @@
+import os
 from decimal import Decimal
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
@@ -320,10 +321,28 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def my_courses(self, request):
-        """Danh sách khóa học đã đăng ký."""
-        enrollments = Enrollment.objects.filter(user=request.user).select_related('course')
-        serializer = EnrollmentSerializer(enrollments, many=True)
-        return Response(serializer.data)
+        """Danh sách khóa học + bằng cấp đã đăng ký."""
+        enrollments = Enrollment.objects.filter(user=request.user).select_related('course', 'degree_program')
+        result = []
+        for e in enrollments:
+            if e.course:
+                result.append({
+                    'id': e.id,
+                    'type': 'course',
+                    'course': CourseSerializer(e.course).data,
+                    'enrolled_at': e.enrolled_at,
+                })
+            elif e.degree_program:
+                result.append({
+                    'id': e.id,
+                    'type': 'degree',
+                    'degree': {
+                        'id': e.degree_program.id,
+                        'title': e.degree_program.title,
+                    },
+                    'enrolled_at': e.enrolled_at,
+                })
+        return Response(result)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def join_free(self, request, pk=None):
@@ -348,24 +367,92 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
             
         return Response({'message': 'Bạn đã đăng ký khóa học này rồi.'}, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def register_degree(self, request):
+        """Đăng ký Bằng cấp (Trial hoặc mua)."""
+        degree_id = request.data.get('degree_id')
+        try:
+            degree = DegreeProgram.objects.get(id=degree_id)
+            # Khởi tạo progress_data trống nếu chưa có
+            enrollment, created = Enrollment.objects.get_or_create(
+                user=request.user, 
+                degree_program=degree,
+                defaults={'progress_data': {'completed_lessons': []}}
+            )
+            return Response({'message': f'Đã đăng ký thành công chương trình {degree.title}', 'id': enrollment.id})
+        except DegreeProgram.DoesNotExist:
+            return Response({'error': 'Không tìm thấy chương trình đào tạo này.'}, status=404)
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def update_degree_progress(self, request):
+        """Cập nhật tiến độ của một bài học trong Bằng cấp."""
+        degree_id = request.data.get('degree_id')
+        lesson_key = request.data.get('lesson_key') # định dạng "module_index-lesson_index"
+        is_completed = request.data.get('is_completed', True)
+        
+        try:
+            enrollment = Enrollment.objects.get(user=request.user, degree_program_id=degree_id)
+            data = enrollment.progress_data or {'completed_lessons': []}
+            completed = set(data.get('completed_lessons', []))
+            
+            if is_completed:
+                completed.add(lesson_key)
+            else:
+                completed.discard(lesson_key)
+                
+            data['completed_lessons'] = list(completed)
+            enrollment.progress_data = data
+            enrollment.save()
+            return Response({'success': True, 'completed_count': len(completed)})
+        except Enrollment.DoesNotExist:
+            return Response({'error': 'Bạn chưa đăng ký chương trình này.'}, status=400)
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def my_schedule(self, request):
-        """Lịch học: trả về enrollments kèm tiến độ từng khóa."""
-        enrollments = Enrollment.objects.filter(user=request.user).select_related('course')
+        """Lịch học: trả về enrollments (cả Course và Degree) kèm tiến độ."""
+        enrollments = Enrollment.objects.filter(user=request.user).select_related('course', 'degree_program')
         result = []
         for e in enrollments:
-            total = Lesson.objects.filter(course=e.course, is_active=True).count()
-            completed = UserProgress.objects.filter(
-                user=request.user, lesson__course=e.course, status='completed'
-            ).count()
-            result.append({
-                'id': e.id,
-                'course': CourseSerializer(e.course).data,
-                'enrolled_at': e.enrolled_at,
-                'total_lessons': total,
-                'completed_lessons': completed,
-                'percent': round((completed / total * 100) if total > 0 else 0),
-            })
+            if e.course:
+                total = Lesson.objects.filter(course=e.course, is_active=True).count()
+                completed = UserProgress.objects.filter(
+                    user=request.user, lesson__course=e.course, status='completed'
+                ).count()
+                result.append({
+                    'id': e.id,
+                    'type': 'course',
+                    'course': CourseSerializer(e.course).data,
+                    'enrolled_at': e.enrolled_at,
+                    'total_lessons': total,
+                    'completed_lessons': completed,
+                    'percent': round((completed / total * 100) if total > 0 else 0),
+                })
+            elif e.degree_program:
+                curriculum = e.degree_program.curriculum or []
+                total_lessons = sum(len(module.get('lessons', [])) for module in curriculum)
+                
+                # Lấy tiến độ từ progress_data
+                prog_data = e.progress_data or {}
+                completed_list = prog_data.get('completed_lessons', [])
+                completed_count = len(completed_list)
+                
+                result.append({
+                    'id': e.id,
+                    'type': 'degree',
+                    'degree_id': e.degree_program.id,
+                    'course': {
+                        'id': f"deg_{e.degree_program.id}",
+                        'title': e.degree_program.title,
+                        'partner_name': e.degree_program.school,
+                        'faculty': e.degree_program.level,
+                        'subject_code': e.degree_program.logo,
+                    },
+                    'enrolled_at': e.enrolled_at,
+                    'total_lessons': total_lessons,
+                    'completed_lessons': completed_count,
+                    'percent': round((completed_count / total_lessons * 100) if total_lessons > 0 else 0),
+                    'completed_keys': completed_list # Gửi về để frontend hiển thị checkbox
+                })
         return Response(result)
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
@@ -868,4 +955,30 @@ class FAQViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Chỉ Admin mới có quyền thêm FAQ.")
         serializer.save()
+
+from .models import DegreeProgram
+from .serializers import DegreeProgramSerializer
+
+class DegreeProgramViewSet(viewsets.ModelViewSet):
+    queryset = DegreeProgram.objects.filter(is_active=True).order_by('-id')
+    serializer_class = DegreeProgramSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Chỉ Admin mới có quyền thêm Chương trình đào tạo.")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        if not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Chỉ Admin mới có quyền sửa Chương trình đào tạo.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Chỉ Admin mới có quyền xóa Chương trình đào tạo.")
+        instance.delete()
 

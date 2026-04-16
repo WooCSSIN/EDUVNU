@@ -7,7 +7,7 @@ from .views import (
     QuizViewSet, QuestionViewSet, ChoiceViewSet,
     AdminCourseViewSet, NotificationViewSet,
     CertificateVerifyView, LessonCommentViewSet,
-    NewsViewSet, FAQViewSet
+    NewsViewSet, FAQViewSet, DegreeProgramViewSet
 )
 
 router = DefaultRouter()
@@ -27,6 +27,7 @@ router.register(r'instructor-courses', InstructorCourseViewSet, basename='instru
 router.register(r'lesson-comments', LessonCommentViewSet, basename='lesson-comments')
 router.register(r'news', NewsViewSet, basename='news')
 router.register(r'faqs', FAQViewSet, basename='faqs')
+router.register(r'degree-programs', DegreeProgramViewSet, basename='degree-programs')
 
 urlpatterns = [
     path('', include(router.urls)),

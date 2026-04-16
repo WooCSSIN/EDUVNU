@@ -154,11 +154,17 @@ export default function Checkout() {
     setError('');
     
     if (isTrial) {
-       // Mock payment success for free trial checkout without hitting backend cart logic
-       setTimeout(() => {
-         navigate(`/payment-return?method=${method}&order_id=TRIAL_${Date.now()}&trial=true`);
-       }, 1500);
-       return;
+      try {
+        const program = location.state?.program;
+        if (program) {
+          await api.post('/courses/courses/register_degree/', { degree_id: program.id });
+        }
+        navigate(`/payment-return?method=${method}&order_id=TRIAL_${Date.now()}&trial=true`);
+      } catch (err) {
+        setError('Không thể kích hoạt dùng thử. Vui lòng thử lại sau.');
+        setProcessing(false);
+      }
+      return;
     }
 
     if (method === 'card') {
