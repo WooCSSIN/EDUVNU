@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import usePageSEO from '../hooks/usePageSEO';
 import { useAuth } from '../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 
 const EyeIcon = ({ show }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -32,7 +33,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showPassword2, setShowPassword2] = useState(false);
-  const { login, register } = useAuth();
+  const { login, register, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const onChange = e => { setForm(p => ({ ...p, [e.target.name]: e.target.value })); setError(''); };
@@ -67,7 +68,7 @@ export default function Auth() {
         </div>
         <div className="crs-auth-left-content">
           <h2>Học không giới hạn</h2>
-          <p>Phát triển kỹ năng của bạn với các khóa học từ Google, IBM, Meta và hàng trăm tổ chức hàng đầu.</p>
+          <p>Phát triển kỹ năng của bạn với các khóa học từ Google, IBM, Meta, và hàng trăm tổ chức hàng đầu.</p>
         </div>
       </div>
 
@@ -148,6 +149,30 @@ export default function Auth() {
             <button type="button" className="crs-auth-switch" onClick={() => { setIsLogin(!isLogin); setError(''); setShowPassword(false); setShowPassword2(false); }}>
               {isLogin ? 'Chưa có tài khoản? Đăng ký ngay' : 'Đã có tài khoản? Đăng nhập'}
             </button>
+            
+            <div className="crs-auth-divider" style={{ display: 'flex', alignItems: 'center', margin: '20px 0', color: '#94a3b8', fontSize: '0.9rem' }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>
+              <span style={{ padding: '0 10px' }}>hoặc</span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <GoogleLogin
+                onSuccess={async (credentialResponse) => {
+                  try {
+                    setLoading(true);
+                    await loginWithGoogle(credentialResponse.credential);
+                    navigate('/');
+                  } catch (err) {
+                    setError('Đăng nhập Google thất bại');
+                    setLoading(false);
+                  }
+                }}
+                onError={() => {
+                  setError('Đăng nhập Google thất bại');
+                }}
+              />
+            </div>
 
             {isLogin && (
               <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>

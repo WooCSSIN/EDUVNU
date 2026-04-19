@@ -291,6 +291,12 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         end_date = self.request.query_params.get('end_date', '')
         visibility_status = self.request.query_params.get('visibility_status', '')
         
+        # --- BỘ LỌC NÂNG CAO (Frontend Advanced Filters) ---
+        level = self.request.query_params.get('level', '').strip()
+        price_min = self.request.query_params.get('price_min', '').strip()
+        price_max = self.request.query_params.get('price_max', '').strip()
+        rating_min = self.request.query_params.get('rating_min', '').strip()
+        
         if q:
             qs = qs.filter(Q(title__icontains=q) | Q(description__icontains=q))
         if category_id:
@@ -301,6 +307,17 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(end_date__lte=end_date)
         if visibility_status:
             qs = qs.filter(visibility_status__iexact=visibility_status)
+        if level:
+            qs = qs.filter(level__iexact=level)
+        if price_min:
+            try: qs = qs.filter(price__gte=float(price_min))
+            except ValueError: pass
+        if price_max:
+            try: qs = qs.filter(price__lte=float(price_max))
+            except ValueError: pass
+        if rating_min:
+            try: qs = qs.filter(rating_avg__gte=float(rating_min))
+            except ValueError: pass
             
         if ordering_param:
             qs = qs.order_by(ordering_param)
@@ -471,9 +488,304 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = LessonSerializer(lessons, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def reviews(self, request, pk=None):
+        """Lấy danh sách đánh giá của khóa học."""
+        course = self.get_object()
+        reviews = Review.objects.filter(course=course).select_related('user').order_by('-created_at')
+        serializer = ReviewSerializer(reviews, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def submit_review(self, request, pk=None):
+        """Học viên gửi đánh giá — chỉ cho người đã enrolled và chưa review."""
+        course = self.get_object()
+        if not Enrollment.objects.filter(user=request.user, course=course).exists():
+            return Response({'error': 'Bạn chưa đăng ký khóa học này.'}, status=status.HTTP_403_FORBIDDEN)
+        if Review.objects.filter(user=request.user, course=course).exists():
+            return Response({'error': 'Bạn đã đánh giá khóa học này rồi.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        rating = request.data.get('rating')
+        comment = request.data.get('comment', '').strip()
+        if not rating or int(rating) not in range(1, 6):
+            return Response({'error': 'Vui lòng chọn điểm từ 1 đến 5.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not comment:
+            return Response({'error': 'Vui lòng nhập nhận xét.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        review = Review.objects.create(user=request.user, course=course, rating=int(rating), comment=comment)
+
+        # Cập nhật rating_avg và num_reviews cho Course
+        from django.db.models import Avg
+        stats = Review.objects.filter(course=course).aggregate(avg=Avg('rating'), cnt=Count('id'))
+        course.rating_avg = round(stats['avg'] or 0, 1)
+        course.num_reviews = stats['cnt'] or 0
+        course.save(update_fields=['rating_avg', 'num_reviews'])
+
+        return Response(ReviewSerializer(review, context={'request': request}).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def related_courses(self, request, pk=None):
+        """Gợi ý khóa học liên quan theo cùng danh mục."""
+        course = self.get_object()
+        related = Course.objects.filter(
+            is_active=True, status='published', category=course.category
+        ).exclude(pk=course.pk).order_by('-rating_avg', '-num_reviews')[:6]
+        serializer = CourseSerializer(related, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def toggle_wishlist(self, request, pk=None):
+        """Thêm/xóa khóa học khỏi danh sách yêu thích."""
+        from .models import Wishlist
+        course = self.get_object()
+        obj, created = Wishlist.objects.get_or_create(user=request.user, course=course)
+        if not created:
+            obj.delete()
+            return Response({'wishlisted': False, 'message': 'Đã xóa khỏi yêu thích.'})
+        return Response({'wishlisted': True, 'message': 'Đã thêm vào yêu thích.'})
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def wishlist_status(self, request, pk=None):
+        """Kiểm tra xem khóa học có trong wishlist không."""
+        from .models import Wishlist
+        course = self.get_object()
+        wishlisted = Wishlist.objects.filter(user=request.user, course=course).exists()
+        return Response({'wishlisted': wishlisted})
+
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def certificate(self, request, pk=None):
-        """Tạo và tải chứng chỉ PDF nếu user hoàn thành 100% khóa học."""
+        """Generate premium English-language certificate PDF."""
+        import unicodedata, math
+        from reportlab.lib.colors import HexColor
+
+        course = self.get_object()
+        try:
+            enrollment = Enrollment.objects.get(user=request.user, course=course)
+        except Enrollment.DoesNotExist:
+            return Response({"error": "Not enrolled in this course."}, status=status.HTTP_403_FORBIDDEN)
+
+        total = Lesson.objects.filter(course=course, is_active=True).count()
+        completed_count = UserProgress.objects.filter(user=request.user, lesson__course=course, status='completed').count()
+
+        if total == 0 or completed_count < total:
+            return Response({"error": "Course not yet completed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        cert, _ = Certificate.objects.get_or_create(enrollment=enrollment)
+
+        def to_ascii(text):
+            return unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8')
+
+        user = request.user
+        student_name  = to_ascii(f"{user.first_name} {user.last_name}".strip() or user.username)
+        course_title  = to_ascii(course.title)
+        partner       = to_ascii(course.partner_name or 'EduVNU')
+        faculty       = to_ascii(course.faculty or 'Vietnam National University')
+        issued_date   = cert.issued_at.strftime('%B %d, %Y')
+        cert_id_short = str(cert.certificate_id).upper()[:8]
+        verify_url    = f"http://localhost:8000/api/v1/courses/certificates/verify/{cert.certificate_id}/"
+
+        # Fonts
+        fonts = {'regular': 'Helvetica', 'bold': 'Helvetica-Bold', 'oblique': 'Helvetica-Oblique'}
+        for variant, path in [
+            ('regular', 'C:/Windows/Fonts/times.ttf'),
+            ('bold',    'C:/Windows/Fonts/timesbd.ttf'),
+            ('oblique', 'C:/Windows/Fonts/timesi.ttf'),
+        ]:
+            try:
+                if os.path.exists(path):
+                    name = f'Times{variant.capitalize()}'
+                    pdfmetrics.registerFont(TTFont(name, path))
+                    fonts[variant] = name
+            except Exception:
+                pass
+
+        # Page
+        response = HttpResponse(content_type='application/pdf')
+        safe_title = to_ascii(course.title).replace(' ', '_')[:40]
+        response['Content-Disposition'] = f'attachment; filename="EduVNU_Certificate_{safe_title}.pdf"'
+        buffer = BytesIO()
+        W, H = landscape(A4)
+        c = canvas.Canvas(buffer, pagesize=landscape(A4))
+
+        NAVY    = HexColor('#1A2340')
+        GOLD    = HexColor('#C9A84C')
+        GOLD_LT = HexColor('#E8D5A3')
+        BLUE    = HexColor('#0056D2')
+        CREAM   = HexColor('#FDFAF3')
+        GRAY    = HexColor('#666666')
+
+        # 1. Cream background
+        c.setFillColor(CREAM)
+        c.rect(0, 0, W, H, fill=1, stroke=0)
+
+        # 2. Outer navy border
+        c.setStrokeColor(NAVY)
+        c.setLineWidth(14)
+        c.rect(14, 14, W-28, H-28, fill=0, stroke=1)
+
+        # 3. Gold double border
+        c.setStrokeColor(GOLD)
+        c.setLineWidth(3)
+        c.rect(26, 26, W-52, H-52, fill=0, stroke=1)
+        c.setLineWidth(1)
+        c.rect(31, 31, W-62, H-62, fill=0, stroke=1)
+
+        # 4. Corner diamond ornaments
+        def diamond(cx, cy, size=14):
+            c.setFillColor(GOLD)
+            p = c.beginPath()
+            p.moveTo(cx, cy + size)
+            p.lineTo(cx + size, cy)
+            p.lineTo(cx, cy - size)
+            p.lineTo(cx - size, cy)
+            p.close()
+            c.drawPath(p, fill=1, stroke=0)
+        mg = 34
+        diamond(mg+6, mg+6); diamond(W-mg-6, mg+6)
+        diamond(mg+6, H-mg-6); diamond(W-mg-6, H-mg-6)
+
+        # 5. Diagonal watermark
+        c.saveState()
+        c.setFillColor(HexColor('#EDE8D8'))
+        c.setFont(fonts['bold'], 72)
+        c.translate(W/2, H/2)
+        c.rotate(30)
+        c.drawCentredString(0, 0, 'CERTIFICATE')
+        c.restoreState()
+
+        # 6. Navy header band
+        c.setFillColor(NAVY)
+        c.rect(38, H-100, W-76, 60, fill=1, stroke=0)
+
+        # Logo in band
+        logo_path = os.path.normpath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'eduvn_logo.png'
+        ))
+        if os.path.exists(logo_path):
+            try:
+                c.drawImage(ImageReader(logo_path), 55, H-97, width=110, height=54, mask='auto', preserveAspectRatio=True)
+            except Exception:
+                pass
+
+        c.setFillColor(HexColor('#FFFFFF'))
+        c.setFont(fonts['bold'], 11)
+        c.drawString(175, H-58, 'EduVNU  |  Online Learning Platform')
+        c.setFont(fonts['regular'], 9)
+        c.setFillColor(GOLD_LT)
+        c.drawRightString(W-55, H-58, 'C O U R S E   C E R T I F I C A T E')
+
+        # Gold divider
+        c.setStrokeColor(GOLD)
+        c.setLineWidth(1.5)
+        c.line(55, H-108, W-55, H-108)
+
+        # 7. Body text
+        top = H-130
+
+        c.setFont(fonts['oblique'], 13)
+        c.setFillColor(GRAY)
+        c.drawCentredString(W/2, top, 'This is to certify that')
+
+        c.setFont(fonts['bold'], 40)
+        c.setFillColor(NAVY)
+        c.drawCentredString(W/2, top-52, student_name)
+
+        nw = c.stringWidth(student_name, fonts['bold'], 40)
+        c.setStrokeColor(GOLD)
+        c.setLineWidth(2)
+        c.line(W/2 - nw/2, top-58, W/2 + nw/2, top-58)
+
+        c.setFont(fonts['oblique'], 13)
+        c.setFillColor(GRAY)
+        c.drawCentredString(W/2, top-82, 'has successfully completed the online course')
+
+        c.setFont(fonts['bold'], 22)
+        c.setFillColor(BLUE)
+        if len(course_title) > 55:
+            mid = course_title[:55].rfind(' ')
+            c.drawCentredString(W/2, top-114, course_title[:mid])
+            c.drawCentredString(W/2, top-138, course_title[mid+1:])
+            title_bot = top-150
+        else:
+            c.drawCentredString(W/2, top-114, course_title)
+            title_bot = top-126
+
+        c.setFont(fonts['oblique'], 11)
+        c.setFillColor(GRAY)
+        c.drawCentredString(W/2, title_bot-22,
+            f'authorized by {partner} and offered through EduVNU — Vietnam National University')
+
+        # 8. Bottom row
+        by = 80
+
+        # Left: dates & issuer
+        c.setFont(fonts['bold'], 10)
+        c.setFillColor(NAVY)
+        c.drawString(60, by+30, issued_date)
+        c.setStrokeColor(HexColor('#AAAAAA'))
+        c.setLineWidth(0.8)
+        c.line(60, by+26, 220, by+26)
+        c.setFont(fonts['regular'], 9)
+        c.setFillColor(GRAY)
+        c.drawString(60, by+14, 'Date of Issue')
+
+        c.setFont(fonts['bold'], 10)
+        c.setFillColor(NAVY)
+        c.drawString(60, by-8, faculty)
+        c.line(60, by-12, 250, by-12)
+        c.setFont(fonts['regular'], 9)
+        c.setFillColor(GRAY)
+        c.drawString(60, by-22, 'Issuing Institution')
+
+        # Centre: cert ID
+        c.setFont(fonts['regular'], 8); c.setFillColor(HexColor('#999999'))
+        c.drawCentredString(W/2, by+22, 'Certificate ID')
+        c.setFont(fonts['bold'], 9); c.setFillColor(HexColor('#444444'))
+        c.drawCentredString(W/2, by+10, cert_id_short)
+        c.setFont(fonts['regular'], 7.5); c.setFillColor(HexColor('#AAAAAA'))
+        short_url = verify_url[:52] + '...' if len(verify_url) > 52 else verify_url
+        c.drawCentredString(W/2, by-2, f'Verify: {short_url}')
+
+        # Seal circle (right)
+        scx = W-90; scy = by+8
+        c.setFillColor(HexColor('#F5EFD6')); c.setStrokeColor(NAVY); c.setLineWidth(2)
+        c.circle(scx, scy, 38, fill=1, stroke=1)
+        c.setStrokeColor(GOLD); c.setLineWidth(1)
+        c.circle(scx, scy, 34, fill=0, stroke=1)
+        for i in range(12):
+            a = math.radians(i * 30)
+            c.setStrokeColor(GOLD); c.setLineWidth(0.8)
+            c.line(scx+30*math.cos(a), scy+30*math.sin(a),
+                   scx+24*math.cos(a), scy+24*math.sin(a))
+        c.setFont(fonts['bold'], 8); c.setFillColor(NAVY)
+        c.drawCentredString(scx, scy+10, 'EduVNU')
+        c.setFont(fonts['regular'], 6.5)
+        c.drawCentredString(scx, scy+2, 'VERIFIED')
+        c.drawCentredString(scx, scy-6, 'CERTIFICATE')
+
+        # QR Code
+        qr = qrcode.QRCode(version=2, box_size=4, border=1)
+        qr.add_data(verify_url)
+        qr.make(fit=True)
+        qr_img = qr.make_image(fill_color='#1A2340', back_color='white')
+        qr_buf = BytesIO()
+        qr_img.save(qr_buf, format='PNG')
+        qr_buf.seek(0)
+        c.drawImage(ImageReader(qr_buf), W-185, by-18, width=58, height=58, mask='auto')
+        c.setFont(fonts['regular'], 6); c.setFillColor(HexColor('#AAAAAA'))
+        c.drawCentredString(W-156, by-26, 'Scan to verify')
+
+        c.showPage()
+        c.save()
+        response.write(buffer.getvalue())
+        buffer.close()
+        return response
+
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def certificate_data(self, request, pk=None):
+        """Return JSON certificate data for the frontend web view."""
+
         course = self.get_object()
         try:
             enrollment = Enrollment.objects.get(user=request.user, course=course)
@@ -484,82 +796,53 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         completed = UserProgress.objects.filter(user=request.user, lesson__course=course, status='completed').count()
         
         if total == 0 or completed < total:
-            return Response({"error": "Chưa hoàn thành khóa học."}, status=status.HTTP_400_BAD_REQUEST)
-            
-        cert, created = Certificate.objects.get_or_create(enrollment=enrollment)
+            return Response({
+                "error": "Chưa hoàn thành khóa học.",
+                "total": total,
+                "completed": completed
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="Certificate-{course.id}.pdf"'
+        cert, _ = Certificate.objects.get_or_create(enrollment=enrollment)
+        user = request.user
+        student_name = f"{user.first_name} {user.last_name}".strip() or user.username
         
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=landscape(A4))
-        width, height = landscape(A4)
+        return Response({
+            'certificate_id': str(cert.certificate_id),
+            'student_name': student_name,
+            'course_title': course.title,
+            'partner_name': course.partner_name or 'EduVNU',
+            'faculty': course.faculty or 'VNU System',
+            'subject_code': course.subject_code,
+            'issued_at': cert.issued_at.strftime('%B %d, %Y'),
+            'issued_at_vi': cert.issued_at.strftime('%d/%m/%Y'),
+            'verify_url': f"http://localhost:8000/api/v1/courses/certificates/verify/{cert.certificate_id}/",
+            'course_id': course.id,
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def my_certificates(self, request):
+        """Lấy tất cả chứng chỉ mà user đã nhận được."""
+        certs = Certificate.objects.filter(
+            enrollment__user=request.user
+        ).select_related('enrollment__course')
         
-        # Load font để hỗ trợ Tiếng Việt (nếu có Arial/Tahoma trên máy)
-        try:
-            if os.path.exists('C:/Windows/Fonts/arial.ttf'):
-                pdfmetrics.registerFont(TTFont('Arial', 'C:/Windows/Fonts/arial.ttf'))
-                font_name = 'Arial'
-            else:
-                font_name = 'Helvetica'
-        except:
-            font_name = 'Helvetica'
-            
-        # Draw background or borders
-        c.setStrokeColorRGB(0.1, 0.5, 0.8)
-        c.setLineWidth(10)
-        c.rect(20, 20, width-40, height-40)
-        
-        c.setFont(font_name, 40)
-        c.drawCentredString(width/2.0, height - 120, "GIAY CHUNG NHAN")
-        
-        c.setFont(font_name, 20)
-        c.drawCentredString(width/2.0, height - 170, "CHUNG NHAN RANG")
-        
-        c.setFont(font_name, 30)
-        c.setFillColorRGB(0.1, 0.3, 0.7)
-        user_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
-        import unicodedata
-        user_name_ascii = unicodedata.normalize('NFKD', user_name).encode('ASCII', 'ignore').decode('utf-8')
-        c.drawCentredString(width/2.0, height - 230, user_name.upper())
-        
-        c.setFillColorRGB(0, 0, 0)
-        c.setFont(font_name, 16)
-        c.drawCentredString(width/2.0, height - 280, "Da hoan thanh xuat sac khoa hoc:")
-        
-        c.setFont(font_name, 24)
-        c.setFillColorRGB(0.8, 0.2, 0.2)
-        course_name = f"[{course.subject_code}] {course.title}" if course.subject_code else course.title
-        course_name_ascii = unicodedata.normalize('NFKD', course_name).encode('ASCII', 'ignore').decode('utf-8')
-        c.drawCentredString(width/2.0, height - 330, course_name.upper() if font_name == 'Arial' else course_name_ascii.upper())
-        
-        c.setFillColorRGB(0, 0, 0)
-        c.setFont(font_name, 14)
-        faculty = course.faculty or "VNU System"
-        c.drawCentredString(width/2.0, height - 380, f"Cap boi: {faculty}")
-        c.drawCentredString(width/2.0, height - 410, f"Ma xac thuc: {cert.certificate_id}")
-        c.drawCentredString(width/2.0, height - 440, f"Ngay cap: {cert.issued_at.strftime('%d/%m/%Y')}")
-        
-        # Draw QR Code using qrcode package
-        qr = qrcode.QRCode(version=1, box_size=5, border=1)
-        verify_url = f"http://127.0.0.1:8000/api/v1/courses/certificates/verify/{cert.certificate_id}/"
-        qr.add_data(verify_url)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        
-        qr_buffer = BytesIO()
-        img.save(qr_buffer, format="PNG")
-        qr_buffer.seek(0)
-        
-        qr_image = ImageReader(qr_buffer)
-        c.drawImage(qr_image, width/2.0 - 50, 40, width=100, height=100)
-        
-        c.save()
-        pdf_value = buffer.getvalue()
-        buffer.close()
-        response.write(pdf_value)
-        
-        return response
+        result = []
+        for cert in certs:
+            course = cert.enrollment.course
+            if not course:
+                continue
+            user = request.user
+            student_name = f"{user.first_name} {user.last_name}".strip() or user.username
+            result.append({
+                'certificate_id': str(cert.certificate_id),
+                'student_name': student_name,
+                'course_title': course.title,
+                'partner_name': course.partner_name or 'EduVNU',
+                'course_id': course.id,
+                'issued_at': cert.issued_at.strftime('%B %d, %Y'),
+                'issued_at_vi': cert.issued_at.strftime('%d/%m/%Y'),
+            })
+        return Response(result)
 
 
 class LessonViewSet(viewsets.ReadOnlyModelViewSet):
@@ -982,3 +1265,19 @@ class DegreeProgramViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Chỉ Admin mới có quyền xóa Chương trình đào tạo.")
         instance.delete()
 
+
+class WishlistViewSet(viewsets.GenericViewSet):
+    """API quản lý danh sách yêu thích của học viên."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        from .models import Wishlist
+        return Wishlist.objects.filter(user=self.request.user).select_related('course', 'course__category', 'course__instructor')
+
+    @action(detail=False, methods=['get'])
+    def my_wishlist(self, request):
+        """GET /courses/wishlist/my_wishlist/ — danh sách khóa học đã yêu thích."""
+        from .serializers import WishlistSerializer
+        qs = self.get_queryset()
+        serializer = WishlistSerializer(qs, many=True)
+        return Response(serializer.data)

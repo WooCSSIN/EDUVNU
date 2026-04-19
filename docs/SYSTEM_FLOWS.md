@@ -12,7 +12,7 @@ Hệ thống được xây dựng theo mô hình **Client-Server** giao tiếp q
 *   **Backend**: Django REST Framework (DRF).
 *   **Database**: MS SQL Server (Hệ thống chính), Redis (Caching & Buffer).
 *   **Background Jobs**: Celery + Celery Beat (Xử lý các tác vụ nặng: Gửi mail, Tính toán thống kê, Flush buffer).
-*   **Gateway**: VNPAY (Thanh toán).
+*   **Gateway**: SePay / VNPAY (Thanh toán).
 
 ---
 

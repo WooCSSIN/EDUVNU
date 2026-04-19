@@ -184,15 +184,6 @@ VNPAY_PAYMENT_URL = 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'
 VNPAY_RETURN_URL = 'http://localhost:5173/payment-return'
 VNPAY_IPN_URL = 'http://localhost:8000/api/v1/orders/vnpay_ipn/'  # Cần tunnel khi test local
 
-# ─── MoMo Payment Settings ────────────────────────────────────
-# Sandbox keys chính thức từ MoMo Developer Portal
-MOMO_PARTNER_CODE = os.getenv('MOMO_PARTNER_CODE', 'MOMO')
-MOMO_ACCESS_KEY = os.getenv('MOMO_ACCESS_KEY', 'F8BBA842ECF85')
-MOMO_SECRET_KEY = os.getenv('MOMO_SECRET_KEY', 'K951B6PE1waRX')
-MOMO_ENDPOINT = 'https://test-payment.momo.vn/v2/gateway/api/create'
-# ─── Stripe Payment Settings ───────────────────────────────────
-STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
-STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
 
 # Email setup for development
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

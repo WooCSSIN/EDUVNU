@@ -47,6 +47,13 @@ export default function CourseDetail() {
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [stickyVisible, setStickyVisible] = useState(false);
   const [showTrialModal, setShowTrialModal] = useState(false);
+  const [wishlisted, setWishlisted] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [relatedCourses, setRelatedCourses] = useState([]);
+  
+  // Review form states
+  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   /* SEO — must be before any early return */
   usePageSEO({
@@ -56,7 +63,7 @@ export default function CourseDetail() {
 
   /* Load course data */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadCourse(); }, [courseId]);
+  useEffect(() => { loadCourse(); loadRelatedCourses(); }, [courseId]);
 
   /* Sticky nav scroll watcher */
   useEffect(() => {
@@ -83,6 +90,7 @@ export default function CourseDetail() {
       setCourse(res.data);
       if (user) {
         try {
+          // Check enrollment
           const enrollRes = await api.get(`/courses/progress/my_progress/?course_id=${courseId}`);
           if (enrollRes.data?.length > 0) setIsEnrolled(true);
           else {
@@ -90,9 +98,47 @@ export default function CourseDetail() {
             setIsEnrolled(true);
           }
         } catch { setIsEnrolled(false); }
+        try {
+          // Check wishlist
+          const wishRes = await api.get(`/courses/courses/${courseId}/wishlist_status/`);
+          setWishlisted(wishRes.data.wishlisted);
+        } catch (e) { console.error('Wishlist error', e); }
       }
     } catch { navigate('/'); }
     finally { setLoading(false); }
+  };
+
+  const loadRelatedCourses = async () => {
+    try {
+      const res = await api.get(`/courses/courses/${courseId}/related_courses/`);
+      setRelatedCourses(res.data);
+    } catch { setRelatedCourses([]); }
+  };
+
+  const toggleWishlist = async () => {
+    if (!user) { navigate('/login'); return; }
+    setWishlistLoading(true);
+    try {
+      const res = await api.post(`/courses/courses/${courseId}/toggle_wishlist/`);
+      setWishlisted(res.data.wishlisted);
+      showToast(res.data.message);
+    } catch (e) {
+      showToast('❌ Không thể cập nhật yêu thích');
+    } finally { setWishlistLoading(false); }
+  };
+
+  const submitReview = async (e) => {
+    e.preventDefault();
+    if (!reviewForm.comment.trim()) return showToast('Vui lòng nhập nhận xét!');
+    setSubmittingReview(true);
+    try {
+      const res = await api.post(`/courses/courses/${courseId}/submit_review/`, reviewForm);
+      setReviews([res.data, ...reviews]);
+      showToast('✅ Cảm ơn bạn đã đánh giá!');
+      setReviewForm({ rating: 5, comment: '' });
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Không thể tạo đánh giá');
+    } finally { setSubmittingReview(false); }
   };
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000); };
@@ -431,7 +477,7 @@ export default function CourseDetail() {
       </div>
 
       {/* ── MAIN 2-COLUMN CONTENT ── */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px', display: 'grid', gridTemplateColumns: '1fr 360px', gap: 32, alignItems: 'start' }}>
+      <div className="course-detail-main" style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px', alignItems: 'start' }}>
 
         {/* ── LEFT: MAIN CONTENT ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
@@ -613,6 +659,32 @@ export default function CourseDetail() {
                 </div>
               )}
 
+              {/* Review Input Form (if enrolled) */}
+              {isEnrolled && (
+                <div style={{ padding: 24, border: '1px solid #e5e7eb', borderRadius: 10, background: '#f9fafb', marginBottom: 24 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Đánh giá của bạn</h3>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button key={star} type="button" onClick={() => setReviewForm({...reviewForm, rating: star})} style={{ background: 'none', border: 'none', fontSize: 24, color: star <= reviewForm.rating ? '#f59e0b' : '#d1d5db', cursor: 'pointer', padding: 0 }}>
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={reviewForm.comment}
+                    onChange={e => setReviewForm({...reviewForm, comment: e.target.value})}
+                    placeholder="Khóa học này thế nào? Hãy chia sẻ trải nghiệm của bạn..."
+                    style={{ width: '100%', padding: '12px 16px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, minHeight: 80, marginBottom: 16, fontFamily: 'inherit' }}
+                  />
+                  <button
+                    onClick={submitReview}
+                    disabled={submittingReview}
+                    style={{ padding: '8px 24px', background: submittingReview ? '#9ca3af' : '#0056D2', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, cursor: submittingReview ? 'not-allowed' : 'pointer' }}>
+                    {submittingReview ? 'Đang gửi...' : 'Gửi đánh giá'}
+                  </button>
+                </div>
+              )}
+
               {/* Review cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {reviewsLoading ? (
@@ -638,6 +710,14 @@ export default function CourseDetail() {
                         </div>
                       </div>
                       <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.65, margin: 0 }}>{text}</p>
+                      {review.instructor_reply && (
+                        <div style={{ marginTop: 16, padding: 16, background: '#eff6ff', borderRadius: 8, borderLeft: '4px solid #0056D2' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                             <span style={{ fontWeight: 700, fontSize: 13, color: '#1d4ed8' }}>Giảng viên phản hồi</span>
+                          </div>
+                          <p style={{ fontSize: 13, color: '#374151', margin: 0 }}>{review.instructor_reply}</p>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -667,26 +747,49 @@ export default function CourseDetail() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 120 }}>
           <EnrollCard />
 
-          {/* Share card */}
+          {/* Actions card (Wishlist/Share) */}
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 12 }}>Chia sẻ khóa học</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 12 }}>Hành động</div>
             <div style={{ display: 'flex', gap: 10 }}>
-              {[
-                { label: 'Facebook', bg: '#1877f2', icon: 'f' },
-                { label: 'LinkedIn', bg: '#0a66c2', icon: 'in' },
-                { label: 'Copy link', bg: '#6b7280', icon: '🔗' },
-              ].map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => {if (s.label === 'Copy link') { navigator.clipboard.writeText(window.location.href); showToast('✅ Đã sao chép link!'); }}}
-                  style={{ flex: 1, padding: '8px 0', background: s.bg, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                  {s.icon}
-                </button>
-              ))}
+              <button
+                disabled={wishlistLoading}
+                onClick={toggleWishlist}
+                style={{ flex: 1, padding: '10px 0', background: wishlisted ? '#fef2f2' : '#f3f4f6', color: wishlisted ? '#ef4444' : '#374151', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s' }}>
+                <span style={{ fontSize: 18 }}>{wishlisted ? '❤️' : '🤍'}</span> Yêu thích
+              </button>
+              <button
+                onClick={() => { navigator.clipboard.writeText(window.location.href); showToast('✅ Đã sao chép link!'); }}
+                style={{ flex: 1, padding: '10px 0', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                🔗 Chia sẻ
+              </button>
             </div>
           </div>
 
-          {/* Related courses placeholder */}
+          {/* Related courses */}
+          {relatedCourses.length > 0 && (
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#111', marginBottom: 16 }}>Khóa học liên quan</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {relatedCourses.map(rc => (
+                  <Link to={`/course/${rc.id}`} key={rc.id} style={{ display: 'flex', gap: 12, textDecoration: 'none', color: 'inherit' }}>
+                    <div style={{ width: 80, height: 60, borderRadius: 6, background: '#e5e7eb', overflow: 'hidden', flexShrink: 0 }}>
+                      <img src={getCourseThumbnail(rc)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#111', lineHeight: 1.4, marginBottom: 4 }} className="line-clamp-2">{rc.title}</div>
+                      <div style={{ fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ color: '#f59e0b', fontWeight: 600 }}>★ {parseFloat(rc.rating_avg || 0).toFixed(1)}</span>
+                        <span>•</span>
+                        <span>{parseFloat(rc.price) > 0 ? `${parseFloat(rc.price).toLocaleString('vi-VN')} ₫` : 'Miễn phí'}</span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Instructor preview placeholder */}
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 12 }}>Được cung cấp bởi</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -22,15 +22,37 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState('');
   const [ordering, setOrdering] = useState(''); // New ordering state
   const [toast, setToast] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterLevel, setFilterLevel] = useState('');
+  const [filterPriceMin, setFilterPriceMin] = useState('');
+  const [filterPriceMax, setFilterPriceMax] = useState('');
+  const [filterRating, setFilterRating] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Đọc ?q= từ URL (được set bởi Header Search Bar)
+  // Đọc các tham số Lọc/Tìm kiếm từ URL (khi điều hướng từ MegaMenu, Header...)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const q = params.get('q');
-    if (q) setSearchQuery(q);
+    setSearchQuery(params.get('q') || '');
+    
+    const priceMax = params.get('price_max');
+    if (priceMax !== null) {
+      setFilterPriceMax(priceMax);
+      setShowFilters(true); // Tự động mở khung lọc nếu có param bộ lọc nâng cao
+    } else {
+      setFilterPriceMax('');
+    }
+
+    const lvl = params.get('level');
+    if (lvl) {
+      setFilterLevel(lvl);
+      setShowFilters(true);
+    } else {
+      setFilterLevel('');
+    }
+
+    setActiveCategory(params.get('category') || '');
   }, [location.search]);
 
   useEffect(() => {
@@ -41,7 +63,7 @@ export default function Home() {
     const timer = setTimeout(() => fetchCourses(), 400);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, activeCategory, ordering]);
+  }, [searchQuery, activeCategory, ordering, filterLevel, filterPriceMin, filterPriceMax, filterRating]);
 
   async function fetchCourses() {
     setLoading(true);
@@ -50,6 +72,10 @@ export default function Home() {
       if (searchQuery) params.append('q', searchQuery);
       if (activeCategory) params.append('category', activeCategory);
       if (ordering) params.append('ordering', ordering);
+      if (filterLevel) params.append('level', filterLevel);
+      if (filterPriceMin) params.append('price_min', filterPriceMin);
+      if (filterPriceMax) params.append('price_max', filterPriceMax);
+      if (filterRating) params.append('rating_min', filterRating);
       const res = await api.get('/courses/courses/?' + params.toString());
       setCourses(Array.isArray(res.data) ? res.data : (res.data.results || []));
     } catch { setCourses([]); }
@@ -149,6 +175,51 @@ export default function Home() {
              </div>
            </div>
         </nav>
+
+        {/* ADVANCED FILTERS */}
+        <div style={{ marginBottom: 24 }}>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            style={{ background: showFilters ? '#0056D2' : '#f3f4f6', color: showFilters ? '#fff' : '#374151', border: 'none', padding: '8px 20px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}
+          >
+            🔍 Bộ lọc nâng cao {showFilters ? '▲' : '▼'}
+          </button>
+          {showFilters && (
+            <div style={{ marginTop: 16, padding: 24, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: '1 1 180px' }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Trình độ</label>
+                <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1px solid #d1d5db', borderRadius: 8, background: '#fff', fontSize: 14 }}>
+                  <option value="">Tất cả trình độ</option>
+                  <option value="Tất cả trình độ">Tất cả các trình độ</option>
+                  <option value="Người mới">Beginner (Người mới bắt đầu)</option>
+                  <option value="Trung cấp">Intermediate (Trung cấp)</option>
+                </select>
+              </div>
+              <div style={{ flex: '1 1 180px' }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Giá từ (₫)</label>
+                <input type="number" placeholder="0" value={filterPriceMin} onChange={e => setFilterPriceMin(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
+              </div>
+              <div style={{ flex: '1 1 180px' }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Giá đến (₫)</label>
+                <input type="number" placeholder="10,000,000" value={filterPriceMax} onChange={e => setFilterPriceMax(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
+              </div>
+              <div style={{ flex: '1 1 180px' }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Đánh giá tối thiểu</label>
+                <select value={filterRating} onChange={e => setFilterRating(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1px solid #d1d5db', borderRadius: 8, background: '#fff', fontSize: 14 }}>
+                  <option value="">Tất cả</option>
+                  <option value="4.5">★★★★★ 4.5+</option>
+                  <option value="4.0">★★★★ 4.0+</option>
+                  <option value="3.5">★★★ 3.5+</option>
+                  <option value="3.0">★★★ 3.0+</option>
+                </select>
+              </div>
+              <button
+                onClick={() => { setFilterLevel(''); setFilterPriceMin(''); setFilterPriceMax(''); setFilterRating(''); }}
+                style={{ padding: '10px 20px', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >Xóa bộ lọc</button>
+            </div>
+          )}
+        </div>
 
         <h2 className="section-title" style={{fontSize: '28px', fontWeight: '700', marginBottom: '32px'}}>Khám phá thế giới tri thức</h2>
         

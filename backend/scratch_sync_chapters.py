@@ -8,6 +8,7 @@ for c in courses:
         title='Chương 1: Giới thiệu & Khái quát', 
         defaults={'order': 1}
     )
+
     lessons = Lesson.objects.filter(course=c, chapter__isnull=True)
     count = lessons.update(chapter=chapter)
     if count > 0:

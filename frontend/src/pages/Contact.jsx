@@ -16,11 +16,11 @@ export default function Contact() {
     setStatus({ loading: true, message: '', type: '' });
     try {
       await api.post('/courses/contact/', formData);
-      setStatus({ loading: false, message: '🎉 Cảm ơn bạn! Lời nhắn đã được gửi thành công.', type: 'success' });
+      setStatus({ loading: false, message: ' Cảm ơn bạn! Lời nhắn đã được gửi thành công.', type: 'success' });
       setFormData({ name: '', email: '', subject: '', message: '' });
     // eslint-disable-next-line no-unused-vars
     } catch (error) {
-      setStatus({ loading: false, message: '❌ Có lỗi xảy ra, vui lòng thử lại sau.', type: 'error' });
+      setStatus({ loading: false, message: ' Có lỗi xảy ra, vui lòng thử lại sau.', type: 'error' });
     }
   };
 
@@ -61,7 +61,7 @@ export default function Contact() {
       
       <div className="crs-contact-info-side">
         <h2 className="crs-contact-subtitle" style={{margin:0, color:'#1f1f1f', fontWeight:700}}>Trụ sở văn phòng</h2>
-        <div className="crs-contact-address">📍 144 Xuân Thủy, Dịch Vọng Hậu, Cầu Giấy, Hà Nội</div>
+        <div className="crs-contact-address"> 144 Xuân Thủy, Dịch Vọng Hậu, Cầu Giấy, Hà Nội</div>
         <div className="crs-map-container">
           <iframe 
             src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3723.9242961448834!2d105.78044731493264!3d21.035712585994246!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3135ab4a40871ccf%3A0xcb030fac4fe18d96!2sVNU%20University%20of%20Engineering%20and%20Technology%20(UET)!5e0!3m2!1sen!2s!4v1689230559902!5m2!1sen!2s" 

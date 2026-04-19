@@ -18,8 +18,6 @@ import CourseDetail from './pages/CourseDetail';
 import NotFound from './pages/NotFound';
 import Contact from './pages/Contact';
 import MockVNPay from './pages/MockVNPay';
-import MockMoMo from './pages/MockMoMo';
-import SePayCheckout from './pages/SePayCheckout';
 import StripeCheckout from './pages/StripeCheckout';
 import InstructorDashboard from './pages/InstructorDashboard';
 import InstructorCreateCourse from './pages/InstructorCreateCourse';
@@ -33,54 +31,89 @@ import InstructorSettings from './pages/InstructorSettings';
 import InstructorLogin from './pages/InstructorLogin';
 import InstructorCourseList from './pages/InstructorCourseList';
 import AdminDashboard from './pages/AdminDashboard';
+import CertificateView from './pages/CertificateView';
+import Accomplishments from './pages/Accomplishments';
+import Wishlist from './pages/Wishlist';
+import FAQ from './pages/FAQ';
+import Policies from './pages/Policies';
+import About from './pages/About';
+import Careers from './pages/Careers';
+import EduVNUPlus from './pages/EduVNUPlus';
+import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import api from './api/axios';
 
-/* ── MEGA MENU DATA ── */
-const EXPLORE_COLS = [
-  {
-    title: 'Khám phá vai trò',
-    items: ['Nhà phân tích dữ liệu','Quản lý dự án','Nhà phân tích An ninh Mạng','Nhà khoa học dữ liệu','Kỹ sư học máy','Thiết kế UX/UI','Chuyên gia Marketing số'],
-  },
-  {
-    title: 'Khám phá danh mục',
-    items: ['Trí tuệ nhân tạo','Kinh doanh','Khoa học dữ liệu','Công nghệ thông tin','Khoa học máy tính','Chăm sóc sức khỏe','Phát triển cá nhân','Học ngôn ngữ'],
-  },
-  {
-    title: 'Nhận Chứng chỉ Chuyên môn',
-    items: ['Kinh doanh','Khoa học máy tính','Khoa học dữ liệu','Công nghệ thông tin'],
-  },
-  {
-    title: 'Kỹ năng thịnh hành',
-    items: ['Python','Trí tuệ nhân tạo','Excel','Học máy','SQL','Quản lý dự án','Power BI','Tiếp thị'],
-  },
-];
+/* ── MEGA MENU DATA (Dynamic) ── */
 
 function MegaMenu({ onClose }) {
+  const [categories, setCategories] = useState([]);
+  const [degrees, setDegrees] = useState([]);
+
+  useEffect(() => {
+    // Fetch Categories
+    api.get('/courses/categories/').then(r => setCategories((r.data.results || r.data || []).slice(0, 8))).catch(() => {});
+    // Fetch Degree Programs 
+    api.get('/courses/degree-programs/').then(r => setDegrees((r.data.results || r.data || []).slice(0, 6))).catch(() => {});
+  }, []);
+
+  const levels = [
+    { label: 'Người mới bắt đầu', value: 'Người mới' },
+    { label: 'Trung cấp', value: 'Trung cấp' },
+    { label: 'Tất cả các cấp độ', value: 'Tất cả trình độ' }
+  ];
+
   return (
     <div className="mega-menu" onMouseLeave={onClose}>
       <div className="mega-menu-inner">
-        {EXPLORE_COLS.map(col => (
-          <div key={col.title} className="mega-col">
-            <h4 className="mega-col-title">{col.title}</h4>
-            <ul>
-              {col.items.map(item => (
-                <li key={item}>
-                  <Link to={`/?q=${encodeURIComponent(item)}`} className="mega-item" onClick={onClose}>
-                    {item}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <Link to="/" className="mega-see-all" onClick={onClose}>Xem tất cả</Link>
-          </div>
-        ))}
+        {/* Cột 1: Danh mục thực từ DB */}
+        <div className="mega-col">
+          <h4 className="mega-col-title">Danh mục khóa học</h4>
+          <ul>
+            {categories.map(c => (
+              <li key={c.id}>
+                <Link to={`/?category=${c.id}`} className="mega-item" onClick={onClose}>
+                  {c.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link to="/" className="mega-see-all" onClick={onClose}>Xem tất cả</Link>
+        </div>
+
+        {/* Cột 2: Lọc theo Trình độ */}
+        <div className="mega-col">
+          <h4 className="mega-col-title">Trình độ học vấn</h4>
+          <ul>
+            {levels.map(lvl => (
+              <li key={lvl.value}>
+                <Link to={`/?level=${lvl.value}`} className="mega-item" onClick={onClose}>
+                  {lvl.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Cột 3: Chương trình Bằng cấp */}
+        <div className="mega-col">
+          <h4 className="mega-col-title">Chứng chỉ chuyên môn</h4>
+          <ul>
+            {degrees.map(d => (
+              <li key={d.id}>
+                {/* Degrees chưa có API query params cho riêng nó ở trang chủ nên đẩy sang trang degrees chuyên dụng */}
+                <Link to="/degrees" className="mega-item" onClick={onClose} style={{ lineHeight: 1.4, marginBottom: 8, display: 'block' }}>
+                  {d.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
       <div className="mega-footer">
         <span>Không chắc bắt đầu từ đâu?</span>
-        <a href="#">Duyệt các khóa học miễn phí</a>
+        <Link to="/?price_max=0" onClick={onClose} style={{color: '#0056D2', fontWeight: 600, textDecoration: 'none', marginLeft: 8, marginRight: 8}}>Duyệt các khóa học miễn phí</Link>
         <span>hoặc</span>
-        <a href="#" className="mega-plus-link">Tìm hiểu thêm về EduVNU <span className="plus-badge">PLUS</span></a>
+        <Link to="/plus" onClick={onClose} className="mega-plus-link">Tìm hiểu thêm về EduVNU <span className="plus-badge">PLUS</span></Link>
       </div>
     </div>
   );
@@ -183,6 +216,8 @@ function Header() {
                   {user.is_instructor && <Link to="/instructor" className="crs-dd-item" style={{color: '#0056d2', fontWeight: 'bold'}} onClick={() => setShowUserMenu(false)}>Dashboard Giảng viên</Link>}
                   {user.is_staff && <Link to="/admin" className="crs-dd-item" style={{color: '#dc2626', fontWeight: 'bold'}} onClick={() => setShowUserMenu(false)}>Admin Monitoring</Link>}
                   <Link to="/orders" className="crs-dd-item" onClick={() => setShowUserMenu(false)}>Mua hàng</Link>
+                  <Link to="/wishlist" className="crs-dd-item" onClick={() => setShowUserMenu(false)}>Khóa học yêu thích</Link>
+                  <Link to="/accomplishments" className="crs-dd-item" onClick={() => setShowUserMenu(false)}>Thành tích</Link>
                   <button className="crs-dd-item logout" onClick={() => { logout(); setShowUserMenu(false); navigate('/'); }}>Đăng xuất</button>
                 </div>
               )}
@@ -226,10 +261,16 @@ function AppLayout() {
           <Route path="/payment-return" element={<PaymentReturn />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/degrees" element={<Degrees />} />
+          <Route path="/certificate/:courseId" element={<CertificateView />} />
+          <Route path="/accomplishments" element={<Accomplishments />} />
+          <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/policies" element={<Policies />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/career" element={<Careers />} />
+          <Route path="/plus" element={<EduVNUPlus />} />
           <Route path="/mock-vnpay" element={<MockVNPay />} />
-          <Route path="/mock-momo" element={<MockMoMo />} />
-          <Route path="/sepay-checkout" element={<SePayCheckout />} />
           <Route path="/stripe-checkout" element={<StripeCheckout />} />
           <Route path="/instructor/login" element={<InstructorLogin />} />
           <Route path="/instructor" element={<InstructorDashboard />} />
@@ -270,17 +311,16 @@ function AppLayout() {
             </div>
             <div className="crs-footer-col">
               <h4>Chăm sóc khách hàng</h4>
-              <a href="#">Hướng dẫn thanh toán</a>
-              <a href="#">Chính sách hoàn trả</a>
-              <a href="#">Chính sách bảo mật</a>
-              <a href="#">Điều khoản sử dụng</a>
+              <Link to="/faq">Câu hỏi thường gặp (FAQ)</Link>
+              <Link to="/policies">Chính sách hoàn trả</Link>
+              <Link to="/policies">Chính sách bảo mật</Link>
+              <Link to="/policies">Điều khoản sử dụng</Link>
             </div>
             <div className="crs-footer-col">
               <h4>Về chúng tôi</h4>
-              <a href="#">Giới thiệu</a>
-              <a href="#">Tuyển dụng</a>
-              <a href="#">Trợ giúp</a>
-              <Link to="/contact">Liên hệ</Link>
+              <Link to="/about">Giới thiệu</Link>
+              <Link to="/career">Tuyển dụng</Link>
+              <Link to="/contact">Trợ giúp & Liên hệ</Link>
             </div>
           </div>
           <div className="crs-footer-bottom">
@@ -295,6 +335,7 @@ function AppLayout() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AuthProvider>
         <AppLayout />
       </AuthProvider>

@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Category, Course, Lesson, Enrollment, UserProgress, Review, ContactMessage,
     Chapter, Quiz, Question, Choice, Notification, LessonComment, QuizAttempt,
-    News, FAQ
+    News, FAQ, Wishlist
 )
 from accounts.models import User
 
@@ -111,11 +111,20 @@ class UserProgressSerializer(serializers.ModelSerializer):
 
 
 class ReviewSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    user = InstructorSerializer(read_only=True)
+    can_edit = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
-        fields = '__all__'
+        fields = ['id', 'user', 'course', 'rating', 'comment', 'instructor_reply',
+                  'replied_at', 'created_at', 'can_edit']
+        read_only_fields = ['user', 'instructor_reply', 'replied_at', 'created_at']
+
+    def get_can_edit(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.user_id == request.user.id
+        return False
 
 
 class ContactMessageSerializer(serializers.ModelSerializer):
@@ -141,3 +150,11 @@ class DegreeProgramSerializer(serializers.ModelSerializer):
     class Meta:
         model = DegreeProgram
         fields = '__all__'
+
+
+class WishlistSerializer(serializers.ModelSerializer):
+    course = CourseSerializer(read_only=True)
+
+    class Meta:
+        model = Wishlist
+        fields = ['id', 'course', 'added_at']

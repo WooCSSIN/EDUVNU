@@ -40,7 +40,7 @@ def seed():
                         content=f"Đây là nội dung mô phỏng cho bài học {i+1} trong phần {chapter.title}. Video được lấy từ nguồn Edu cao cấp."
                     )
                     count += 1
-    print(f" Đã tạo thành công {count} bài học mẫu cho các khóa học!")
+    print(f"✅ Đã tạo thành công {count} bài học mẫu cho các khóa học!")
 
 if __name__ == '__main__':
     seed()

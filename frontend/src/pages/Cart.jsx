@@ -98,10 +98,10 @@ export default function Cart() {
       {/* Tabs */}
       <div className="crs-cart-tabs">
         <button className={`crs-cart-tab ${tab==='cart'?'active':''}`} onClick={()=>setTab('cart')}>
-          🛒 Giỏ hàng ({items.length})
+           Giỏ hàng ({items.length})
         </button>
         <button className={`crs-cart-tab ${tab==='orders'?'active':''}`} onClick={()=>setTab('orders')}>
-          📦 Lịch sử mua hàng ({orders.length})
+           Lịch sử mua hàng ({orders.length})
         </button>
       </div>
 
@@ -129,7 +129,7 @@ export default function Cart() {
                     {enrolledCourseIds.has(item.course?.id) && (
                       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                         <span style={{background:'#f59e0b',color:'#fff',fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4}}>
-                          ⚠️ Bạn đã học khóa học này
+                           Bạn đã học khóa học này
                         </span>
                       </div>
                     )}
@@ -146,7 +146,7 @@ export default function Cart() {
                         {removing === item.course?.id ? 'Đang xóa...' : '🗑 Xóa'}
                       </button>
                       <button style={{background:'none',border:'none',color:'var(--blue)',cursor:'pointer',fontSize:13,padding:0}}>
-                        💾 Lưu để sau
+                         Lưu để sau
                       </button>
                       <button onClick={()=>navigate(`/course/${item.course?.id}`)} style={{background:'none',border:'none',color:'var(--blue)',cursor:'pointer',fontSize:13,padding:0}}>
                         👁 Xem chi tiết
@@ -191,7 +191,7 @@ export default function Cart() {
                 {/* Fix #4: Cảnh báo nếu có khóa học đã đăng ký trong giỏ */}
                 {hasDuplicateEnrollment && (
                   <div style={{background:'#fffbeb',border:'1.5px solid #f59e0b',borderRadius:8,padding:'12px 16px',marginBottom:12,fontSize:13,color:'#92400e',display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:18}}>⚠️</span>
+                    <span style={{fontSize:18}}></span>
                     <span>Giỏ hàng có khóa học bạn đã đăng ký. Hãy xóa chúng trước khi thanh toán.</span>
                   </div>
                 )}
@@ -217,11 +217,11 @@ export default function Cart() {
                   </div>
                 </div>
 
-                <div className="crs-secure">🔒 Thanh toán an toàn & bảo mật SSL</div>
+                <div className="crs-secure"> Thanh toán an toàn & bảo mật SSL</div>
 
                 {/* Trust Badges */}
                 <div style={{display:'flex',justifyContent:'center',gap:12,marginTop:14,flexWrap:'wrap'}}>
-                  {['💳 Visa','💳 MC','📱 MoMo','🏦 Bank'].map(b => (
+                  {[' Visa',' MC',' MoMo',' Bank'].map(b => (
                     <span key={b} style={{fontSize:11,color:'var(--muted)',background:'var(--bg)',padding:'4px 8px',borderRadius:4}}>{b}</span>
                   ))}
                 </div>
@@ -235,7 +235,7 @@ export default function Cart() {
       {tab === 'orders' && (
         orders.length === 0 ? (
           <div className="crs-cart-empty" style={{padding:'80px 20px'}}>
-            <div style={{fontSize:72,marginBottom:16}}>📦</div>
+            <div style={{fontSize:72,marginBottom:16}}></div>
             <h3>Chưa có đơn hàng nào</h3>
             <p style={{color:'var(--muted)',marginBottom:20}}>Bắt đầu học để tạo đơn hàng đầu tiên.</p>
             <button className="crs-btn-solid" onClick={()=>navigate('/')}>Khám phá khóa học</button>
@@ -254,7 +254,7 @@ export default function Cart() {
                     </div>
                     <div className="crs-order-right">
                       <span className={`crs-status-badge ${isPaid ? 'paid' : 'pending'}`}>
-                        {isPaid ? '✓ Đã thanh toán' : '⏳ Chờ xử lý'}
+                        {isPaid ? '✓ Đã thanh toán' : ' Chờ xử lý'}
                       </span>
                       <span className="crs-order-price">{parseFloat(order.total_price||0).toLocaleString('vi-VN')} ₫</span>
                       <span className="crs-expand">{isExpanded ? '▲' : '▼'}</span>

@@ -307,3 +307,18 @@ class DegreeProgram(models.Model):
     def __str__(self):
         return f"{self.title} - {self.school}"
 
+
+class Wishlist(models.Model):
+    """Danh sách yêu thích của học viên."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='wishlist')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='wishlisted_by')
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'course')
+        ordering = ['-added_at']
+
+    def __str__(self):
+        return f"{self.user.username} → {self.course.title}"
+
+

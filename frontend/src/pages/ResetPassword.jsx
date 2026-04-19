@@ -1,7 +1,39 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import usePageSEO from '../hooks/usePageSEO';
 import api from '../api/axios';
+
+const EyeIcon = ({ show }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    {show ? (
+      <>
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+        <line x1="1" y1="1" x2="23" y2="23"/>
+      </>
+    ) : (
+      <>
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </>
+    )}
+  </svg>
+);
+
+const LockIcon = () => (
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    <circle cx="12" cy="16.5" r="1.5"/>
+  </svg>
+);
+
+const CheckCircleIcon = () => (
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#1a7f37" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M9 12l2 2 4-4"/>
+  </svg>
+);
 
 export default function ResetPassword() {
   usePageSEO({
@@ -20,6 +52,23 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false);
 
   const onChange = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+
+  /* Password strength meter */
+  const strength = useMemo(() => {
+    const pw = form.new_password;
+    if (!pw) return { level: 0, label: '', cls: '' };
+    let score = 0;
+    if (pw.length >= 8) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    if (score <= 1) return { level: 1, label: 'Yếu', cls: 'weak' };
+    if (score === 2) return { level: 2, label: 'Trung bình', cls: 'medium' };
+    if (score === 3) return { level: 3, label: 'Mạnh', cls: 'strong' };
+    return { level: 4, label: 'Rất mạnh', cls: 'very-strong' };
+  }, [form.new_password]);
+
+  const passwordsMatch = form.confirm_password && form.new_password === form.confirm_password;
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -48,23 +97,6 @@ export default function ResetPassword() {
     }
   };
 
-  const EyeIcon = ({ show }) => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      {show ? (
-        <>
-          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-          <line x1="1" y1="1" x2="23" y2="23"/>
-        </>
-      ) : (
-        <>
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </>
-      )}
-    </svg>
-  );
-
   return (
     <div className="crs-auth-page">
       <div className="crs-auth-left">
@@ -86,19 +118,36 @@ export default function ResetPassword() {
       <div className="crs-auth-right">
         <div className="crs-auth-card">
           {success ? (
-            <div className="crs-forgot-success">
-              <div className="crs-forgot-success-icon">✅</div>
+            <div className="crs-forgot-success crs-fade-in">
+              <div className="crs-forgot-success-icon crs-success-bounce">
+                <CheckCircleIcon />
+              </div>
               <h2>Đặt lại thành công!</h2>
-              <p className="crs-auth-sub">Mật khẩu của bạn đã được cập nhật. Bạn sẽ được chuyển đến trang đăng nhập sau 3 giây...</p>
-              <Link to="/login" className="crs-auth-submit" style={{ display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: '20px' }}>
+              <p className="crs-auth-sub">
+                Mật khẩu của bạn đã được cập nhật. Bạn sẽ được chuyển đến trang đăng nhập sau 3 giây...
+              </p>
+              <div className="crs-reset-redirect-bar">
+                <div className="crs-reset-redirect-fill"></div>
+              </div>
+              <Link to="/login" className="crs-auth-submit crs-reset-login-btn">
                 Đăng nhập ngay
               </Link>
             </div>
           ) : (
             <>
+              <div className="crs-reset-icon-wrap">
+                <LockIcon />
+              </div>
               <h2>Đặt lại mật khẩu</h2>
               <p className="crs-auth-sub">Tạo mật khẩu mới cho tài khoản của bạn.</p>
-              {error && <div className="crs-auth-error">{error}</div>}
+
+              {error && (
+                <div className="crs-auth-error crs-fade-in">
+                  <span className="crs-auth-error-icon">⚠</span>
+                  {error}
+                </div>
+              )}
+
               <form className="crs-auth-form" onSubmit={onSubmit}>
                 <div className="crs-field">
                   <label htmlFor="new_password">Mật khẩu mới</label>
@@ -121,7 +170,21 @@ export default function ResetPassword() {
                       <EyeIcon show={showPassword} />
                     </button>
                   </div>
+
+                  {/* Password strength meter */}
+                  {form.new_password && (
+                    <div className="crs-pw-strength crs-fade-in">
+                      <div className="crs-pw-strength-bar">
+                        <div className={`crs-pw-strength-fill crs-pw-${strength.cls}`}
+                             style={{ width: `${strength.level * 25}%` }}></div>
+                      </div>
+                      <span className={`crs-pw-strength-label crs-pw-${strength.cls}`}>
+                        {strength.label}
+                      </span>
+                    </div>
+                  )}
                 </div>
+
                 <div className="crs-field">
                   <label htmlFor="confirm_password">Xác nhận mật khẩu</label>
                   <div className="crs-password-wrapper">
@@ -133,6 +196,7 @@ export default function ResetPassword() {
                       onChange={onChange}
                       placeholder="Nhập lại mật khẩu mới"
                       required
+                      className={form.confirm_password ? (passwordsMatch ? 'crs-input-valid' : 'crs-input-invalid') : ''}
                     />
                     <button
                       type="button"
@@ -143,11 +207,32 @@ export default function ResetPassword() {
                       <EyeIcon show={showConfirm} />
                     </button>
                   </div>
+                  {form.confirm_password && (
+                    <span className={`crs-pw-match-label crs-fade-in ${passwordsMatch ? 'match' : 'no-match'}`}>
+                      {passwordsMatch ? '✓ Mật khẩu khớp' : '✗ Mật khẩu không khớp'}
+                    </span>
+                  )}
                 </div>
+
                 <button type="submit" className="crs-auth-submit" disabled={loading}>
-                  {loading ? 'Đang cập nhật...' : 'Đặt lại mật khẩu'}
+                  {loading ? (
+                    <span className="crs-btn-loading">
+                      <span className="crs-btn-spinner"></span>
+                      Đang cập nhật...
+                    </span>
+                  ) : 'Đặt lại mật khẩu'}
                 </button>
               </form>
+
+              <div className="crs-reset-tips crs-fade-in">
+                <p className="crs-reset-tips-title">Gợi ý mật khẩu mạnh:</p>
+                <ul className="crs-reset-tips-list">
+                  <li className={form.new_password.length >= 8 ? 'done' : ''}>Ít nhất 8 ký tự</li>
+                  <li className={/[A-Z]/.test(form.new_password) ? 'done' : ''}>Có chữ in hoa (A-Z)</li>
+                  <li className={/[0-9]/.test(form.new_password) ? 'done' : ''}>Có chữ số (0-9)</li>
+                  <li className={/[^A-Za-z0-9]/.test(form.new_password) ? 'done' : ''}>Có ký tự đặc biệt (!@#$)</li>
+                </ul>
+              </div>
             </>
           )}
         </div>

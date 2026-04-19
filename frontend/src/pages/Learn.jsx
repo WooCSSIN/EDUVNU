@@ -237,13 +237,28 @@ export default function Learn() {
   );
   if (errorStatus) return <div className="lrn-fullscreen-state"><h2>Lỗi {errorStatus}</h2></div>;
 
+  const isDegree = courseId.startsWith('deg_');
+  const completedCount = lessons.filter(l => progress[l.id] === 'completed').length;
+  const completionPercent = lessons.length > 0 ? Math.round((completedCount / lessons.length) * 100) : 0;
+  const isFullyCompleted = !isDegree && completionPercent === 100;
+
   return (
     <div className="lrn-root">
+      {/* Certificate celebration banner */}
+      {isFullyCompleted && (
+        <div className="lrn-cert-banner">
+          <span className="lrn-cert-banner-icon">🎉</span>
+          <span>Chúc mừng! Bạn đã hoàn thành khóa học.</span>
+          <Link to={`/certificate/${courseId}`} className="lrn-cert-banner-btn">
+            Nhận chứng chỉ →
+          </Link>
+        </div>
+      )}
       <header className="lrn-topbar">
         <div className="lrn-topbar-left"><Link to="/" className="lrn-logo">EduVNU</Link> <span className="lrn-topbar-sep">/</span> <span className="lrn-topbar-title">{fixText(course?.title)}</span></div>
         <div className="lrn-topbar-progress">
-          <div className="lrn-topbar-progress-bar"><div className="lrn-topbar-progress-fill" style={{ width: `${Math.round((lessons.filter(l => progress[l.id] === 'completed').length / lessons.length) * 100)}%` }} /></div>
-          <span>{Math.round((lessons.filter(l => progress[l.id] === 'completed').length / lessons.length) * 100)}%</span>
+          <div className="lrn-topbar-progress-bar"><div className="lrn-topbar-progress-fill" style={{ width: `${completionPercent}%` }} /></div>
+          <span>{completionPercent}%</span>
         </div>
         <div className="lrn-topbar-right"><button className="lrn-exit-btn" onClick={() => navigate('/')}>✕ Thoát</button></div>
       </header>

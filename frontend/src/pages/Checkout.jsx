@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardNumberElement, CardExpiryElement, CardCvcElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -12,7 +12,6 @@ const stripePromise = loadStripe('pk_test_51TJ6jYCXDledMR05jGelboBqOpunHDDIB1tv6
 
 const METHODS = [
   { id: 'vnpay', icon: '🛡️', label: 'Cổng thanh toán VNPAY', desc: 'ATM nội địa, Internet Banking' },
-  { id: 'momo',  icon: '📱', label: 'Ví điện tử MoMo',       desc: 'Quét mã MoMo để thanh toán' },
   { id: 'card',  icon: '💳', label: 'Thẻ Visa / Mastercard', desc: 'Thanh toán an toàn qua Stripe' },
   { id: 'chuyen_khoan', icon: '🏦', label: 'Chuyển khoản QR', desc: 'Quét VietQR, xác nhận tự động' },
 ];
@@ -252,15 +251,7 @@ export default function Checkout() {
                             </div>
                           </div>
                         )}
-                        {m.id === 'momo' && (
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '16px', background: '#fff', borderRadius: 8, border: '1px solid #fae8ff' }}>
-                            <span style={{ fontSize: 28 }}>📱</span>
-                            <div>
-                              <div style={{ fontWeight: 700, color: '#a21caf', marginBottom: 4 }}>Ví điện tử MoMo</div>
-                              <p style={{ color: '#64748b', margin: 0, fontSize: 14, lineHeight: 1.6 }}>Thanh toán nhanh chóng qua ứng dụng MoMo.</p>
-                            </div>
-                          </div>
-                        )}
+
                         {m.id === 'card' && (
                           <Elements stripe={stripePromise}>
                             <StripeCardForm ref={stripeFormRef} onSuccess={handleStripeSuccess} onError={setError} />

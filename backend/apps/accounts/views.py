@@ -10,6 +10,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from .models import User
 from .serializers import UserSerializer, RegisterSerializer
+import requests
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
@@ -61,6 +62,48 @@ class LoginView(generics.GenericAPIView):
             'refresh': str(refresh),
         })
 
+class GoogleLoginView(generics.GenericAPIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        credential = request.data.get('credential')
+        if not credential:
+            return Response({'error': 'No credential provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Validate token using Google endpoint
+            response = requests.get(f'https://oauth2.googleapis.com/tokeninfo?id_token={credential}')
+            if response.status_code != 200:
+                return Response({'error': 'Google token không hợp lệ hoặc đã hết hạn.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            idinfo = response.json()
+            email = idinfo.get('email')
+            if not email:
+                return Response({'error': 'Không thể lấy email từ Google.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            user = User.objects.filter(email=email).first()
+            if not user:
+                # Generate a unique username
+                base_username = email.split('@')[0]
+                username = base_username
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+                
+                user = User(username=username, email=email)
+                user.set_unusable_password()
+                user.save()
+
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'user': UserSerializer(user).data,
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+            })
+            
+        except Exception as e:
+            return Response({'error': f'Lỗi xác thực Google: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all()

@@ -3,7 +3,7 @@
 ## ✅ Các lỗi đã sửa
 1.  **Ghi danh thất bại**: Sửa lỗi Database SQL Server từ chối lệnh `INSERT` vào bảng `Enrollment` do thiếu giá trị mặc định cho ngày ghi danh. (Đã thêm `DF_enrolled_at`).
 2.  **Checkout ảo**: Loại bỏ phần giả lập (mock) trong `Checkout.jsx`, thay bằng lệnh gọi API thật để ghi danh Bằng cấp vào Database.
-3.  **Lỗi bảng hệ thống SQL**: Bổ sung các bảng `django_session`, `auth_group`, `django_admin_log` và các index bị thiếu để Django Admin hoạt động ổn định.
+3.  **Lỗi bảng hệ thống SQL**: Bổ sung các bảng `django_session`, `auth_group`, `django_admin_log m` và các index bị thiếu để Django Admin hoạt động ổn định.
 
 ## 🚀 Tính năng mới nâng cấp
 1.  **Ghi danh Bằng cấp (Degrees)**: Cho phép người dùng đăng ký học các tấm bằng đại học (Bachelor/Master) và lưu trực tiếp vào bảng `Enrollment`.
