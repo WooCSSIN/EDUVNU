@@ -213,7 +213,7 @@ function Header() {
                 <div className="crs-dropdown">
                   <div className="crs-dropdown-header"><span className="crs-avatar lg">{user.username[0].toUpperCase()}</span><div><p className="crs-dd-name">{user.first_name ? `${user.first_name} ${user.last_name}` : user.username}</p><p className="crs-dd-email">{user.email}</p></div></div>
                   <div className="crs-dropdown-divider" /><Link to="/profile" className="crs-dd-item" onClick={() => setShowUserMenu(false)}>Hồ sơ</Link>
-                  {user.is_instructor && <Link to="/instructor" className="crs-dd-item" style={{color: '#0056d2', fontWeight: 'bold'}} onClick={() => setShowUserMenu(false)}>Dashboard Giảng viên</Link>}
+                  {(user.is_instructor || user.is_staff) && <Link to="/instructor" className="crs-dd-item" style={{color: '#0056d2', fontWeight: 'bold'}} onClick={() => setShowUserMenu(false)}>Dashboard Giảng viên</Link>}
                   {user.is_staff && <Link to="/admin" className="crs-dd-item" style={{color: '#dc2626', fontWeight: 'bold'}} onClick={() => setShowUserMenu(false)}>Admin Monitoring</Link>}
                   <Link to="/orders" className="crs-dd-item" onClick={() => setShowUserMenu(false)}>Mua hàng</Link>
                   <Link to="/wishlist" className="crs-dd-item" onClick={() => setShowUserMenu(false)}>Khóa học yêu thích</Link>

@@ -973,7 +973,10 @@ class InstructorCourseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsInstructor, IsCourseOwner]
 
     def get_queryset(self):
-        # RÀ SOÁT LỖI: Luôn lọc theo instructor hiện tại và hiện cái mới nhất lên trên
+        # Nếu user là staff (quản trị viên/con người thật), trả về tất cả khóa học
+        if self.request.user.is_staff:
+            return Course.objects.all().order_by('-id')
+        # Nếu là tổ chức, chỉ trả về khóa học do họ sở hữu
         return Course.objects.filter(instructor=self.request.user).order_by('-id')
 
     def perform_create(self, serializer):

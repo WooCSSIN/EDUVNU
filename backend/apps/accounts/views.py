@@ -17,6 +17,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data['user_id'] = self.user.id
         data['is_instructor'] = self.user.is_instructor
+        data['is_staff'] = self.user.is_staff  # Staff là người thật có quyền vào Instructor Studio
         return data
 
 class MyTokenObtainPairView(TokenObtainPairView):

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -22,10 +22,12 @@ const InstructorLogin = () => {
         try {
             const response = await api.post('/accounts/token/', credentials);
             // eslint-disable-next-line no-unused-vars
-            const { access, refresh, user_id, is_instructor } = response.data;
+            const { access, refresh, user_id, is_staff } = response.data;
             
-            if (!is_instructor) {
-                setError('Tài khoản này không có quyền truy cập khu vực Giảng viên.');
+            // Chỉ staff (người thật) mới được vào Instructor Studio
+            // is_instructor = True là role của tài khoản tổ chức (IBM, Google...) gắn với khóa học
+            if (!is_staff) {
+                setError('Tài khoản này không có quyền truy cập khu vực Giảng viên. Vui lòng liên hệ quản trị viên.');
                 setLoading(false);
                 return;
             }
