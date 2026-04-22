@@ -112,6 +112,7 @@ class Lesson(models.Model):
     title = models.CharField(max_length=255)
     order_number = models.PositiveIntegerField(default=1)
     video_url = models.URLField(max_length=255, null=True, blank=True)
+    video_file = models.FileField(upload_to='lessons/videos/', null=True, blank=True, help_text="Upload file video bài giảng")
     document_file = models.FileField(upload_to='lessons/documents/', null=True, blank=True, help_text="Tài liệu đính kèm (PDF/Slide)")
     content = models.TextField()
     is_active = models.BooleanField(default=True)

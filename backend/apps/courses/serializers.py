@@ -22,7 +22,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class LessonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson
-        fields = ['id', 'title', 'order_number', 'video_url', 'document_file', 'content', 'course']
+        fields = ['id', 'title', 'order_number', 'video_url', 'video_file', 'document_file', 'content', 'course', 'chapter']
 
 class LessonCommentSerializer(serializers.ModelSerializer):
     user = InstructorSerializer(read_only=True)
@@ -39,19 +39,19 @@ class QuizAttemptSerializer(serializers.ModelSerializer):
 class ChoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Choice
-        fields = ['id', 'text', 'is_correct']
+        fields = ['id', 'text', 'is_correct', 'question']
 
 class QuestionSerializer(serializers.ModelSerializer):
     choices = ChoiceSerializer(many=True, read_only=True)
     class Meta:
         model = Question
-        fields = ['id', 'text', 'order', 'choices']
+        fields = ['id', 'text', 'order', 'choices', 'quiz']
 
 class QuizSerializer(serializers.ModelSerializer):
     questions = QuestionSerializer(many=True, read_only=True)
     class Meta:
         model = Quiz
-        fields = ['id', 'title', 'description', 'passing_score', 'questions']
+        fields = ['id', 'title', 'description', 'passing_score', 'questions', 'chapter']
 
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -65,7 +65,7 @@ class ChapterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Chapter
-        fields = ['id', 'title', 'order', 'lessons', 'quiz']
+        fields = ['id', 'title', 'order', 'lessons', 'quiz', 'course']
 
 
 class CourseSerializer(serializers.ModelSerializer):
@@ -76,11 +76,15 @@ class CourseSerializer(serializers.ModelSerializer):
     )
     lesson_count = serializers.SerializerMethodField()
     skills_list = serializers.SerializerMethodField()
+    student_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
         fields = '__all__'
         read_only_fields = ['instructor', 'rating_avg', 'num_reviews', 'is_active', 'created_at']
+
+    def get_student_count(self, obj):
+        return obj.enrollments.count()
 
     def get_lesson_count(self, obj):
         return obj.lessons.filter(is_active=True).count()

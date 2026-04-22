@@ -127,6 +127,69 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── PROMOTIONS / ƯU ĐÃI HÔM NAY ── */}
+      <section className="promo-section" style={{background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)', padding: '48px 0', position: 'relative', overflow: 'hidden'}}>
+        {/* Decorative blurs */}
+        <div style={{position: 'absolute', top: -60, right: -60, width: 200, height: 200, background: 'radial-gradient(circle, rgba(99,102,241,0.3), transparent)', borderRadius: '50%', pointerEvents: 'none'}} />
+        <div style={{position: 'absolute', bottom: -40, left: -40, width: 160, height: 160, background: 'radial-gradient(circle, rgba(244,63,94,0.2), transparent)', borderRadius: '50%', pointerEvents: 'none'}} />
+
+        <div style={{maxWidth: 1200, margin: '0 auto', padding: '0 20px', position: 'relative', zIndex: 1}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28}}>
+            <div>
+              <div style={{display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8}}>
+                <span style={{fontSize: 28}}>🔥</span>
+                <h2 style={{fontSize: 26, fontWeight: 800, color: '#fff', margin: 0}}>Ưu đãi hôm nay</h2>
+                <span style={{background: 'linear-gradient(135deg, #f43f5e, #ec4899)', color: '#fff', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: '0.5px'}}>HOT SALE</span>
+              </div>
+              <p style={{fontSize: 14, color: '#a5b4fc', margin: 0}}>Tiết kiệm lớn với các khóa học đang giảm giá đặc biệt</p>
+            </div>
+            <Link to="/?ordering=-created_at" style={{color: '#818cf8', textDecoration: 'none', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 4}}>
+              Xem tất cả →
+            </Link>
+          </div>
+
+          {/* Scrollable promo cards */}
+          <div className="promo-scroll" style={{display: 'flex', gap: 20, overflowX: 'auto', paddingBottom: 12, scrollSnapType: 'x mandatory'}}>
+            {courses.filter(c => c.original_price && parseFloat(c.original_price) > parseFloat(c.price) && parseFloat(c.price) > 0).slice(0, 8).map((course, i) => {
+              const price = parseFloat(course.price);
+              const origPrice = parseFloat(course.original_price);
+              const discountPercent = Math.round((1 - price / origPrice) * 100);
+              return (
+                <Link to={`/course/${course.id}`} key={course.id} style={{textDecoration: 'none', color: 'inherit', scrollSnapAlign: 'start', flexShrink: 0, width: 270}}>
+                  <div style={{background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, overflow: 'hidden', transition: 'transform 0.25s ease, box-shadow 0.25s ease', cursor: 'pointer'}}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(99,102,241,0.25)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>
+                    <div style={{height: 140, position: 'relative', overflow: 'hidden'}}>
+                      <img src={getCourseThumbnail(course)} alt={fixText(course.title)} style={{width: '100%', height: '100%', objectFit: 'cover'}} onError={e => { e.target.style.display = 'none'; }} />
+                      <div style={{position: 'absolute', top: 8, left: 8, background: 'linear-gradient(135deg, #dc2626, #f43f5e)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 800}}>
+                        -{discountPercent}%
+                      </div>
+                    </div>
+                    <div style={{padding: '14px 16px'}}>
+                      <div style={{fontSize: 11, color: '#a5b4fc', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.3px'}}>
+                        {fixText(course.category?.name) || 'Khóa học'}
+                      </div>
+                      <h3 style={{fontSize: 14, fontWeight: 700, color: '#fff', margin: '0 0 10px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
+                        {fixText(course.title)}
+                      </h3>
+                      <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+                        <span style={{fontSize: 17, fontWeight: 800, color: '#f59e0b'}}>{price.toLocaleString('vi-VN')} ₫</span>
+                        <span style={{fontSize: 13, textDecoration: 'line-through', color: '#6b7280'}}>{origPrice.toLocaleString('vi-VN')} ₫</span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+            {courses.filter(c => c.original_price && parseFloat(c.original_price) > parseFloat(c.price) && parseFloat(c.price) > 0).length === 0 && (
+              <div style={{color: '#a5b4fc', textAlign: 'center', width: '100%', padding: '30px 0', fontSize: 14}}>
+                Hiện tại chưa có khóa học giảm giá. Hãy quay lại sau nhé!
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       <section className="container" style={{maxWidth: '1200px', margin: '0 auto', padding: '48px 20px'}}>
         <nav className="filter-row" aria-label="Lọc khóa học" style={{display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px'}}>
            <div className="tabs" style={{display: 'flex', gap: '24px', overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: '4px', flex: '1 1 0%', minWidth: 0}} role="tablist">

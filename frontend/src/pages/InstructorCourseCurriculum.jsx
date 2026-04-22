@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../api/axios';
 import '../assets/instructor-dashboard.css';
@@ -16,7 +16,7 @@ const InstructorCourseCurriculum = () => {
     const [activeChapter, setActiveChapter] = useState(null); 
     
     const [newChapter, setNewChapter] = useState({ title: '', order: 1 });
-    const [newLesson, setNewLesson] = useState({ title: '', video_url: '', content: '', order_number: 1 });
+    const [newLesson, setNewLesson] = useState({ title: '', video_url: '', video_file: null, content: '', order_number: 1 });
 
     // Quiz Editor States
     const [quizData, setQuizData] = useState({ title: '', passing_score: 70, questions: [] });
@@ -70,8 +70,19 @@ const InstructorCourseCurriculum = () => {
     const handleAddLesson = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/courses/lessons/', { ...newLesson, course: courseId, chapter: activeChapter.id });
-            setNewLesson({ title: '', video_url: '', content: '', order_number: (activeChapter.lessons?.length || 0) + 1 });
+            const formData = new FormData();
+            formData.append('title', newLesson.title);
+            formData.append('content', newLesson.content);
+            formData.append('course', courseId);
+            formData.append('chapter', activeChapter.id);
+            formData.append('order_number', (activeChapter.lessons?.length || 0) + 1);
+            if (newLesson.video_url) formData.append('video_url', newLesson.video_url);
+            if (newLesson.video_file) formData.append('video_file', newLesson.video_file);
+
+            await api.post('/courses/lessons/', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setNewLesson({ title: '', video_url: '', video_file: null, content: '', order_number: (activeChapter.lessons?.length || 0) + 1 });
             setShowLessonForm(false);
             fetchData();
         // eslint-disable-next-line no-unused-vars
@@ -240,9 +251,18 @@ const InstructorCourseCurriculum = () => {
                         <div className="content-card" style={{width: '100%', maxWidth: '600px', padding: '30px'}}>
                             <h2>Thêm bài học mới</h2>
                             <form onSubmit={handleAddLesson}>
-                                <div style={{marginBottom: '15px'}}><label>Tiêu đề</label><input type="text" required style={{width: '100%', padding: '10px'}} value={newLesson.title} onChange={e => setNewLesson({...newLesson, title: e.target.value})} /></div>
-                                <div style={{marginBottom: '15px'}}><label>Video URL</label><input type="text" style={{width: '100%', padding: '10px'}} value={newLesson.video_url} onChange={e => setNewLesson({...newLesson, video_url: e.target.value})} /></div>
-                                <div style={{marginBottom: '20px'}}><label>Nội dung</label><textarea rows="4" style={{width: '100%', padding: '10px'}} value={newLesson.content} onChange={e => setNewLesson({...newLesson, content: e.target.value})}></textarea></div>
+                                <div style={{marginBottom: '15px'}}><label style={{fontWeight: 600}}>Tiêu đề bài học *</label><input type="text" required style={{width: '100%', padding: '10px'}} value={newLesson.title} onChange={e => setNewLesson({...newLesson, title: e.target.value})} /></div>
+                                <div style={{marginBottom: '15px', display: 'flex', gap: '15px'}}>
+                                    <div style={{flex: 1}}>
+                                        <label style={{fontWeight: 600}}>Upload Video (File MP4)</label>
+                                        <input type="file" accept="video/*" style={{width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f8fafc'}} onChange={e => setNewLesson({...newLesson, video_file: e.target.files[0]})} />
+                                    </div>
+                                    <div style={{flex: 1}}>
+                                        <label style={{fontWeight: 600}}>Hoặc dán Link YouTube</label>
+                                        <input type="text" style={{width: '100%', padding: '10px'}} placeholder="https://youtube.com/..." value={newLesson.video_url} onChange={e => setNewLesson({...newLesson, video_url: e.target.value})} />
+                                    </div>
+                                </div>
+                                <div style={{marginBottom: '20px'}}><label style={{fontWeight: 600}}>Tóm tắt nội dung</label><textarea rows="4" style={{width: '100%', padding: '10px'}} value={newLesson.content} onChange={e => setNewLesson({...newLesson, content: e.target.value})}></textarea></div>
                                 <div style={{display: 'flex', justifyContent: 'flex-end', gap: '10px'}}><button type="button" onClick={() => setShowLessonForm(false)}>Hủy</button><button type="submit" className="btn-create-course">Lưu</button></div>
                             </form>
                         </div>

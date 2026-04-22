@@ -75,9 +75,16 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({'status': 'read'})
 
 class AdminCourseViewSet(viewsets.ModelViewSet):
-    queryset = Course.objects.filter(status='pending')
     serializer_class = CourseSerializer
     permission_classes = [permissions.IsAdminUser]
+
+    def get_queryset(self):
+        """Trả về TẤT CẢ courses cho Admin — hỗ trợ lọc theo ?status=pending."""
+        qs = Course.objects.all().order_by('-created_at')
+        status_filter = self.request.query_params.get('status', '').strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -845,9 +852,35 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(result)
 
 
-class LessonViewSet(viewsets.ReadOnlyModelViewSet):
+class LessonViewSet(viewsets.ModelViewSet):
     queryset = Lesson.objects.filter(is_active=True)
     serializer_class = LessonSerializer
+
+    def get_permissions(self):
+        """GET: ai cũng xem được. POST/PUT/DELETE: phải đăng nhập."""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
+
+    def perform_create(self, serializer):
+        """Chỉ giảng viên sở hữu khóa học mới được thêm bài."""
+        course_id = self.request.data.get('course')
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Khóa học không tồn tại.")
+        if course.instructor != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Bạn không có quyền thêm bài vào khóa học này.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Chỉ giảng viên sở hữu hoặc admin mới được xóa bài."""
+        if instance.course.instructor != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Bạn không có quyền xóa bài này.")
+        instance.delete()
 
     @action(detail=True, methods=['get'])
     def comments(self, request, pk=None):
@@ -962,6 +995,18 @@ class ContactMessageViewSet(viewsets.ModelViewSet):
     queryset = ContactMessage.objects.all()
     serializer_class = ContactMessageSerializer
     permission_classes = [permissions.AllowAny]
+
+    def perform_create(self, serializer):
+        serializer.save()
+        # Nếu user đã đăng nhập, tạo thông báo hệ thống cho họ
+        if self.request.user.is_authenticated:
+            from .models import Notification
+            Notification.objects.create(
+                user=self.request.user,
+                title='Đã gửi yêu cầu hỗ trợ!',
+                message='Yêu cầu hỗ trợ của bạn đã được ghi nhận. Quản trị viên EduVNU sẽ xem xét và phản hồi cho bạn qua Email sớm nhất có thể.',
+                link='/'
+            )
 
 
 # --- API DÀNH RIÊNG CHO GIẢNG VIÊN (INSTRUCTOR ONLY) ---

@@ -101,7 +101,7 @@ const InstructorDashboard = () => {
                                         </td>
                                         <td>{course.category?.name || 'Chưa phân loại'}</td>
                                         <td>{Number(course.price).toLocaleString()}₫</td>
-                                        <td>{course.num_reviews * 10 || 0}</td>
+                                        <td>{course.student_count || 0}</td>
                                         <td>
                                             <span className={`badge ${course.is_active ? 'badge-published' : 'badge-draft'}`}>
                                                 {course.is_active ? 'Đang bán' : 'Bản nháp'}

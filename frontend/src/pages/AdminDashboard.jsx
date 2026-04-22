@@ -1,10 +1,11 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { Link, useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {
     const [courses, setCourses] = useState([]);
-    const [stats, setStats] = useState({ pending: 0, published: 0, users: 0, revenue: 0 });
+    const [messages, setMessages] = useState([]);
+    const [stats, setStats] = useState({ pending: 0, published: 0, users: 0, revenue: 0, contacts: 0 });
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('pending');
     const [showRejectModal, setShowRejectModal] = useState(false);
@@ -25,12 +26,17 @@ const AdminDashboard = () => {
             const allCourses = res.data.results || res.data;
             setCourses(allCourses);
             
+            const msgRes = await api.get('/courses/contact/');
+            const allMessages = msgRes.data.results || msgRes.data;
+            setMessages(allMessages.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
+
             // Tính toán stats sơ bộ (Trong thực tế nên có 1 API stats riêng)
             setStats({
                 pending: allCourses.filter(c => c.status === 'pending').length,
                 published: allCourses.filter(c => c.status === 'published').length,
                 users: 1250, // Mock
-                revenue: 45800000 // Mock
+                revenue: 45800000, // Mock
+                contacts: allMessages.length
             });
             setLoading(false);
         } catch (error) {
@@ -117,6 +123,13 @@ const AdminDashboard = () => {
                             <div style={{ fontSize: '1.8rem', fontWeight: 800, color: s.color, marginTop: '10px' }}>{s.value}</div>
                         </div>
                     ))}
+                    <div style={{ padding: '25px', background: '#1e293b', borderRadius: '20px', border: '1px solid #334155', position: 'relative', overflow: 'hidden' }}>
+                        <div className="admin-stat-card">
+                            <span style={{ fontSize: '2rem', marginBottom: '10px', display: 'block' }}>✉️</span>
+                            <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '5px' }}>Yêu cầu hỗ trợ</div>
+                            <div style={{ fontSize: '1.8rem', fontWeight: 800 }}>{stats.contacts}</div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* TABS & FILTER */}
@@ -125,6 +138,7 @@ const AdminDashboard = () => {
                         { id: 'pending', label: 'Hàng chờ duyệt' },
                         { id: 'published', label: 'Đã xuất bản' },
                         { id: 'rejected', label: 'Đã từ chối' },
+                        { id: 'contact', label: 'Yêu cầu hỗ trợ' },
                         { id: 'all', label: 'Tất cả' }
                     ].map(tab => (
                         <div key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
@@ -145,6 +159,39 @@ const AdminDashboard = () => {
                             <div style={{ fontSize: '4rem' }}>🏖️</div>
                             <p>Mục này hiện đang trống.</p>
                         </div>
+                    ) : activeTab === 'contact' ? (
+                        messages.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '100px', color: '#475569' }}>
+                                <div style={{ fontSize: '4rem' }}>📭</div>
+                                <p>Không có yêu cầu hỗ trợ nào.</p>
+                            </div>
+                        ) : (
+                            messages.map(msg => (
+                                <div key={msg.id} style={{
+                                    padding: '25px', background: '#1e293b', border: '1px solid #334155', borderRadius: '16px',
+                                    display: 'flex', flexDirection: 'column', gap: '15px'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #334155', paddingBottom: '15px' }}>
+                                        <div>
+                                            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', color: '#fff' }}>{msg.subject || 'Không có tiêu đề'}</h3>
+                                            <div style={{ display: 'flex', gap: '20px', fontSize: '0.9rem', color: '#94a3b8' }}>
+                                                <span>👤 {msg.name}</span>
+                                                <span style={{ color: '#3b82f6' }}>✉️ {msg.email}</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ color: '#64748b', fontSize: '0.85rem' }}>
+                                            {new Date(msg.created_at).toLocaleString('vi-VN')}
+                                        </div>
+                                    </div>
+                                    <div style={{ color: '#cbd5e1', lineHeight: '1.6', whiteSpace: 'pre-wrap', background: '#0f172a', padding: '15px', borderRadius: '8px' }}>
+                                        {msg.message}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                                        <a href={`mailto:${msg.email}?subject=Phản hồi: ${msg.subject}`} style={{ padding: '10px 20px', borderRadius: '8px', background: 'linear-gradient(to right, #10b981, #059669)', color: 'white', textDecoration: 'none', fontWeight: 700, fontSize: '0.9rem', display: 'inline-block' }}>Phản hồi Email</a>
+                                    </div>
+                                </div>
+                            ))
+                        )
                     ) : (
                         filteredCourses.map(course => (
                             <div key={course.id} style={{

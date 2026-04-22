@@ -324,7 +324,21 @@ function AppLayout() {
             </div>
           </div>
           <div className="crs-footer-bottom">
-            <span>© 2026 EduVNU. All rights reserved.</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, width: '100%' }}>
+              <span>© 2026 EduVNU. All rights reserved.</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', fontSize: '12px', color: '#94a3b8' }}>
+                <span> GPKD số: 0102345678 — Sở KH&ĐT TP. Hà Nội cấp ngày 15/01/2024</span>
+                <span>|</span>
+                <span> MST: 0102345678</span>
+                <span>|</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                   Đã đăng ký Bộ Công Thương
+                </span>
+              </div>
+            </div>
+            <div style={{ marginTop: 12, fontSize: '11px', color: '#64748b', lineHeight: 1.6 }}>
+              Trụ sở: 144 Xuân Thủy, Dịch Vọng Hậu, Cầu Giấy, Hà Nội • Hotline: 1900 636 595 • Email: support@eduvnu.edu.vn
+            </div>
           </div>
         </footer>
       )}

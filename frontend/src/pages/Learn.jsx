@@ -197,7 +197,22 @@ export default function Learn() {
     }
   };
 
-  const renderPlayer = (url) => {
+  const renderPlayer = (lesson) => {
+    if (!lesson) return <div className="lrn-no-video"><p>🎥 Video bài giảng này đang được cập nhật...</p></div>;
+    
+    // Nếu có file video tải lên, ưu tiên dùng thẻ HTML5 Video
+    if (lesson.video_file) {
+      return (
+        <video
+          controls
+          controlsList="nodownload"
+          src={lesson.video_file}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#000' }}
+        />
+      );
+    }
+
+    const url = lesson.video_url;
     if (!url || url.trim() === '') return <div className="lrn-no-video"><p>🎥 Video bài giảng này đang được cập nhật...</p></div>;
     
     let vidId = null;
@@ -303,7 +318,7 @@ export default function Learn() {
               {/* Video Player - giới hạn kích thước hợp lý */}
               <div style={{ background: '#000', borderRadius: 12, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
                 <div style={{ position: 'relative', paddingBottom: '50%', height: 0, overflow: 'hidden' }}>
-                  {renderPlayer(activeLesson.video_url)}
+                  {renderPlayer(activeLesson)}
                 </div>
               </div>
 
@@ -352,9 +367,17 @@ export default function Learn() {
                   </button>
                 ))}
                 {chapter.quiz && (
-                  <button className={`lrn-lesson-item ${activeQuiz?.id === chapter.quiz.id ? 'active' : ''}`} onClick={() => { setActiveQuiz(chapter.quiz); setActiveLesson(null); setQuizResult(null); setUserAnswers({}); }} style={{background: '#f0f9ff', color: '#0369a1', borderLeft: '4px solid #0ea5e9'}}>
-                    <span className="lrn-lesson-num">📝</span>
-                    <div className="lrn-lesson-item-info"><span className="lrn-lesson-item-title"><b>Bài kiểm tra:</b> {chapter.quiz.title}</span></div>
+                  <button 
+                    className="lrn-lesson-item" 
+                    onClick={() => { setActiveQuiz(chapter.quiz); setActiveLesson(null); setQuizResult(null); setUserAnswers({}); }} 
+                    style={
+                      activeQuiz?.id === chapter.quiz.id 
+                      ? { background: '#0056d2', color: '#fff' } 
+                      : { background: '#f0f9ff', color: '#0369a1', borderLeft: '4px solid #0ea5e9' }
+                    }
+                  >
+                    <span className="lrn-lesson-num" style={{color: activeQuiz?.id === chapter.quiz.id ? '#fff' : '#0369a1'}}>📝</span>
+                    <div className="lrn-lesson-item-info"><span className="lrn-lesson-item-title" style={{color: activeQuiz?.id === chapter.quiz.id ? '#fff' : '#0369a1'}}><b>Bài kiểm tra:</b> {chapter.quiz.title}</span></div>
                   </button>
                 )}
               </div>
